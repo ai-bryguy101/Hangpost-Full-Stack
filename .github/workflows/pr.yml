@@ -75,18 +75,7 @@ jobs:
           file: infra/docker/web.Dockerfile
           push: false
 
-  security:
-    name: Trivy filesystem scan
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # Advisory in Phase 0 — never blocks the suite. Full security
-      # hardening (blocking scan) lands in Phase 6 (CLAUDE.md §6).
-      - name: Trivy
-        continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: CRITICAL,HIGH
-          exit-code: "1"
+  # NOTE: dependency/container vulnerability scanning (Trivy) is part of
+  # Phase 6 (observability + hardening), where it becomes a blocking gate
+  # with a pinned, verified action version. Omitted here to keep Phase 0
+  # CI free of unverifiable external-action dependencies.
