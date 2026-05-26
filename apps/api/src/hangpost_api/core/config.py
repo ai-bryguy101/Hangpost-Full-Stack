@@ -29,8 +29,17 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = Field(default=None)
     clerk_jwks_url: str | None = Field(default=None)
 
+    # Browser origins allowed to call the API (CORS). Comma-separated so it
+    # can be set from a single env var; the web app on Vercel goes here.
+    cors_origins: str = Field(default="http://localhost:3000")
+
     # Identifies which ranker produced an impression, logged on every row.
     model_version: str = Field(default="rules-v1")
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """Parsed, trimmed list of allowed browser origins."""
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 @lru_cache

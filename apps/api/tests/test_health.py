@@ -16,3 +16,8 @@ def test_health_ok() -> None:
 def test_health_sets_request_id_header() -> None:
     resp = client.get("/health")
     assert resp.headers.get("X-Request-ID")
+
+
+def test_cors_allows_configured_origin() -> None:
+    resp = client.get("/health", headers={"Origin": "http://localhost:3000"})
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"

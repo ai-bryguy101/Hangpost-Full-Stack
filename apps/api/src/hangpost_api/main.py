@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from hangpost_api import __version__
@@ -42,6 +43,17 @@ app = FastAPI(
     title="Hangpost API",
     version=__version__,
     lifespan=lifespan,
+)
+
+# allow_credentials=True is required so the browser sends the Clerk httpOnly
+# cookie; that forbids a "*" origin, hence the explicit allow-list.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=[REQUEST_ID_HEADER],
 )
 
 
