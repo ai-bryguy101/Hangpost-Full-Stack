@@ -1,0 +1,74 @@
+# Local dev stack: Postgres (PostGIS+pgvector) + Redis + API + Web.
+# Run from anywhere with:  docker compose -f infra/compose/docker-compose.yml up
+# Build contexts are the repo root so the Dockerfiles can see apps/.
+
+name: hangpost
+
+services:
+  db:
+    # PostGIS image; the vector extension is created by the initial migration.
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: hangpost
+      POSTGRES_PASSWORD: hangpost
+      POSTGRES_DB: hangpost
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hangpost -d hangpost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: applies Alembic migrations, then exits. API waits on its success.
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hangpost:hangpost@db:5432/hangpost
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hangpost:hangpost@db:5432/hangpost
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: development
+    ports: ["8000:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports: ["3000:3000"]
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  pgdata:
