@@ -1,0 +1,10 @@
+{
+  "name": "Hangpost",
+  "short_name": "Hangpost",
+  "description": "Make new friends in the city you just moved to.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": []
+}
