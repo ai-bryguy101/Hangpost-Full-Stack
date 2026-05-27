@@ -66,7 +66,10 @@ services:
       context: ../..
       dockerfile: infra/docker/web.Dockerfile
     environment:
+      # Browser uses localhost (host port mapping); SSR inside the container
+      # must reach the API by its compose service name.
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      API_INTERNAL_URL: http://api:8000
     ports: ["3000:3000"]
     depends_on:
       api:
