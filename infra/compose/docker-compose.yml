@@ -6,8 +6,10 @@ name: hangpost
 
 services:
   db:
-    # PostGIS image; the vector extension is created by the initial migration.
-    image: postgis/postgis:16-3.4
+    # PostGIS + pgvector; both extensions are created by the initial migration.
+    build:
+      context: ../..
+      dockerfile: infra/docker/db.Dockerfile
     environment:
       POSTGRES_USER: hangpost
       POSTGRES_PASSWORD: hangpost
