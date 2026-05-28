@@ -40,6 +40,9 @@ COPY apps/api/alembic.ini apps/api/alembic.ini
 COPY apps/api/alembic apps/api/alembic
 COPY apps/api/src apps/api/src
 COPY apps/api/scripts apps/api/scripts
+# Seeds ship inside the image so `python -m hangpost_api.seed` works under
+# the non-editable install used here (where __file__ lives in site-packages).
+COPY apps/api/seeds apps/api/seeds
 
 # Non-root for safety.
 RUN useradd --create-home --uid 10001 appuser
