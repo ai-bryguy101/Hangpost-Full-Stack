@@ -10,6 +10,42 @@
 
 ---
 
+## 2026-05-28 — Pin `hangpost-matching` to a commit SHA, not a tag
+
+Sibling repo (`ai-bryguy101/hangpost-app`) has no GitHub releases, no
+git tags, and no PyPI release. Pinned to commit
+`94b15fb87099a4f16caf6de0091e8a05460afade` (default branch HEAD,
+"Add pre-deploy smoke test for the HF Space", merged from PR #19).
+Less pretty than a tag but reproducible. Swap for a tag the moment
+upstream cuts one.
+
+---
+
+## 2026-05-28 — Use the engine's `rank_candidates_with_cold_start`, not `rank`
+
+The Phase 0 stub at `hangpost_api/matching/engine.py` called
+`hangpost_matching.rank(source, candidates)`. That function does not
+exist in the engine. The actual exports are `rank_candidates` and
+`rank_candidates_with_cold_start` (the latter falls back to a
+popularity prior for sparse sources, which is exactly the right
+behaviour for new users in Phase 1). Adapter now calls the
+cold-start-aware variant. `UserProfile` also has no `name` field —
+`display_name` is an app-side concern that never enters the engine;
+the recommendations router carries it on the response, not the engine
+input.
+
+---
+
+## 2026-05-28 — `sentence-transformers` lives in the API package, not an extra
+
+The matching engine exposes a `SentenceTransformerEmbedder` but never
+loads a model itself — embeddings are passed in precomputed. We own
+the embedding step (backfill script + future inline embed-on-write),
+so `sentence-transformers` is a first-class API dependency rather than
+an optional extra. Heavier image, but no second deploy path.
+
+---
+
 ## 2026-05-28 — Revise Phase 1 sequencing
 
 Original Phase 1 (per `CLAUDE.md` §6): "Auth + Profile". Operator's initial framing

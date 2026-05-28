@@ -6,8 +6,8 @@
 > in the same commit as the work.
 
 Last updated: **2026-05-28**
-Active branch: `claude/repo-assessment-phase-1-y3OKg`
-Current phase: **Phase 0 complete → preparing Phase 1**
+Active branch: `claude/hopeful-volta-ZOBFt`
+Current phase: **Phase 1 in flight — steps 1.1–1.3 landed; 1.4–1.6 next**
 
 ---
 
@@ -16,7 +16,7 @@ Current phase: **Phase 0 complete → preparing Phase 1**
 | Phase | Status | Notes |
 |---|---|---|
 | 0. Foundation | ✅ done | Schema, ORM, seed (1,001 DC profiles), CI, ADRs 0001–0004 |
-| 1. Auth + Profile + Embeddings + `/recommendations` | 🟡 next | See "Phase 1 plan" below |
+| 1. Auth + Profile + Embeddings + `/recommendations` | 🟡 in flight | 1.1–1.3 landed (engine pinned at `94b15fb`, backfill script, `GET /recommendations` mounted). 1.4 Clerk + 1.5/1.6 profile writes pending. |
 | 2. Location + Feed MVP | ⏳ blocked on Figma/Stitch designs (ADR-0005) |
 | 3. Matching integration | partly absorbed into revised Phase 1 |
 | 4. Hangouts + Real-time | not started |
@@ -39,11 +39,19 @@ Current phase: **Phase 0 complete → preparing Phase 1**
 
 ## What is intentionally NOT done yet
 
-- `hangpost-matching` is **not pinned** in `apps/api/pyproject.toml` — line 28 is commented out. Phase 1 unblocks this.
-- All 1,001 seed profiles have `embedding = NULL` and `bio_synthesized = NULL`. Phase 1 backfills.
-- No domain routers wired; `main.py` only exposes `/health` + `/health/ready`.
-- No Clerk JWT verification (only the `clerk_jwks_url` settings stub).
+- No Clerk JWT verification (only the `clerk_jwks_url` settings stub). `/recommendations` accepts `source_user_id` as a query param until 1.4 lands.
+- No `POST /profiles` or `PATCH /profiles/{me}` yet (1.5).
+- Embeddings on profile *write* not yet wired — only the backfill exists (1.6).
 - Frontend (`apps/web`) is one health-check landing page. Real UI waits on Phase 2 + Figma designs.
+
+## What landed this session (2026-05-28)
+
+- `apps/api/pyproject.toml` pins `hangpost-matching @ git+https://github.com/ai-bryguy101/hangpost-app@94b15fb` (no PyPI release yet, no tags on the sibling repo) and adds `sentence-transformers>=2.7`.
+- `apps/api/src/hangpost_api/matching/engine.py` adapter now delegates to the real export `rank_candidates_with_cold_start` (the stub called a non-existent `rank()`).
+- `apps/api/scripts/backfill_embeddings.py` — idempotent batch backfill; embeds `profile_to_text()` output through `all-MiniLM-L6-v2`; checks dim against `EMBEDDING_DIM`.
+- `apps/api/src/hangpost_api/recommendations/router.py` — `GET /recommendations`: ST_DWithin pre-filter → load mutuals → engine `UserProfile`s → `rank_candidates_with_cold_start` → log `recommendation_impressions` → return ranked results with `MatchBreakdown`.
+- `infra/docker/api.Dockerfile` runtime stage now installs `libgomp1` (torch + lightgbm OpenMP runtime) and copies `apps/api/scripts`.
+- Sibling-repo API drift recorded: `UserProfile` has no `name` field and the ranker exports `rank_candidates` / `rank_candidates_with_cold_start`, not `rank` — see `DECISIONS_LOG.md`.
 
 ---
 
@@ -65,14 +73,14 @@ Demoable at the end of 1.3 against synthetic users (no auth needed). End of 1.6 
 
 ## External inputs needed (from operator / sibling repo)
 
-To unblock Phase 1 step 1.1, I need to know about the sibling repo `ai-bryguy101/hangpost-app`:
+All Phase 1.1–1.3 unknowns resolved on 2026-05-28 by reading the sibling repo directly:
 
-- Is `hangpost-matching` published to **PyPI** yet, or do we install from a **git tag**?
-- The **release tag or commit SHA** we should pin to.
-- Public entry points we will rely on: `UserProfile`, `Query`, `rank()`, `profile_to_text()`, `LearnedRanker`, `MatchBreakdown`. Confirm signatures haven't drifted from `CLAUDE.md` §5.
-- Embedding model used by the engine — is `sentence-transformers/all-MiniLM-L6-v2` still the canonical choice (matches `EMBEDDING_DIM = 384` in `apps/api/src/hangpost_api/profiles/models.py:23`)?
+- `hangpost-matching` is **not on PyPI** (no release, no tags, no publish workflow); pinned to commit SHA `94b15fb87099a4f16caf6de0091e8a05460afade`.
+- Engine still uses `sentence-transformers/all-MiniLM-L6-v2` (384-dim) — matches `EMBEDDING_DIM`.
+- Sibling Dockerfile installs `gcc libgomp1`; mirrored as `libgomp1` in the API runtime stage.
+- Public API drift: `UserProfile` has no `name` field (we keep `display_name` on our ORM, never pass it to the engine); top-level ranker is `rank_candidates` / `rank_candidates_with_cold_start`, not `rank`.
 
-See `docs/DECISIONS_LOG.md` "Open questions" for the full list.
+Outstanding for later phases: when upstream cuts a `v0.1.0` tag, swap the SHA pin for the tag.
 
 ---
 

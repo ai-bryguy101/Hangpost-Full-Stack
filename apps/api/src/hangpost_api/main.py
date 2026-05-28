@@ -17,6 +17,7 @@ from sqlalchemy import text
 from hangpost_api import __version__
 from hangpost_api.core.config import get_settings
 from hangpost_api.core.db import engine
+from hangpost_api.recommendations.router import router as recommendations_router
 
 structlog.configure(
     processors=[
@@ -68,6 +69,9 @@ async def request_id_middleware(
     response.headers[REQUEST_ID_HEADER] = request_id
     structlog.contextvars.clear_contextvars()
     return response
+
+
+app.include_router(recommendations_router)
 
 
 @app.get("/health", tags=["meta"])

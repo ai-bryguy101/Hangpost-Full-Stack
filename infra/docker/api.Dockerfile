@@ -28,10 +28,18 @@ ENV PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH"
 
+# libgomp1 is the OpenMP runtime that sentence-transformers (via torch) and
+# lightgbm dlopen at import time. Without it, importing hangpost_matching
+# crashes with "libgomp.so.1: cannot open shared object file".
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /opt/venv /opt/venv
 COPY apps/api/alembic.ini apps/api/alembic.ini
 COPY apps/api/alembic apps/api/alembic
 COPY apps/api/src apps/api/src
+COPY apps/api/scripts apps/api/scripts
 
 # Non-root for safety.
 RUN useradd --create-home --uid 10001 appuser

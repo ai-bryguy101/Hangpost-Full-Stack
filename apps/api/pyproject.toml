@@ -24,8 +24,10 @@ dependencies = [
     "opentelemetry-sdk>=1.27",
     "opentelemetry-instrumentation-fastapi>=0.48b0",
     "sentry-sdk[fastapi]>=2.18",
-    # Matching engine — sibling repo, installed as a package. Pin to a tag in CI.
-    # "hangpost-matching @ git+https://github.com/ai-bryguy101/hangpost-app@main",
+    # Embeds profile_to_text() output; same model the engine documents (all-MiniLM-L6-v2).
+    "sentence-transformers>=2.7",
+    # Matching engine — sibling repo, pinned at a commit SHA until upstream cuts a tag.
+    "hangpost-matching @ git+https://github.com/ai-bryguy101/hangpost-app@94b15fb87099a4f16caf6de0091e8a05460afade",
 ]
 
 [project.optional-dependencies]
