@@ -29,6 +29,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from hangpost_api.auth.dependencies import get_current_user_optional
 from hangpost_api.auth.models import User
 from hangpost_api.core.config import get_settings
 from hangpost_api.core.db import get_session
@@ -104,8 +105,18 @@ async def _accepted_friend_ids(
 
 @router.get("", summary="Ranked friend candidates near the source user")
 async def get_recommendations(
-    source_user_id: Annotated[uuid.UUID, Query(description="UUID of the viewer.")],
     session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[User | None, Depends(get_current_user_optional)],
+    source_user_id: Annotated[
+        uuid.UUID | None,
+        Query(
+            description=(
+                "UUID of the viewer. Optional when a Clerk JWT is sent — the "
+                "authenticated user's id is used in that case. Required "
+                "otherwise (synthetic-corpus demo path)."
+            ),
+        ),
+    ] = None,
     radius_m: Annotated[
         int,
         Query(
@@ -141,6 +152,17 @@ async def get_recommendations(
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Matching engine is not installed in this image.",
+        )
+
+    # JWT wins when present; the query param is a transitional fallback
+    # for demoing against the synthetic seed corpus, where users have no
+    # Clerk identity yet.
+    if current_user is not None:
+        source_user_id = current_user.id
+    elif source_user_id is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="source_user_id is required when no bearer token is sent.",
         )
 
     source_profile = (

@@ -10,6 +10,50 @@
 
 ---
 
+## 2026-05-28 — Embed-on-write is inline, not Arq
+
+`POST /profiles` and `PATCH /profiles/me` synthesize the bio + encode
+the vector inside the request handler (via `asyncio.to_thread` so the
+event loop stays free). The matching engine's eventual-consistency
+story is fine — a stale embedding is just a slightly stale ranking,
+not an error — but inline keeps the demo path obvious: the moment a
+user saves their profile, `embedding_at` reflects it. Move to an Arq
+job the first time we see a real latency complaint or batch edit.
+
+---
+
+## 2026-05-28 — Optional auth on `/recommendations` is a transitional crutch
+
+The endpoint accepts either a Clerk JWT (preferred) or a
+`source_user_id` query param (synthetic-corpus demo path). It is
+explicitly a Phase-1 bridge: seed users have no Clerk identity, so the
+only way to demo ranking against them today is the query param. The
+moment the web frontend ships with Clerk, drop the fallback and make
+the endpoint auth-only. Logged in `STATUS.md` "What is intentionally
+NOT done yet".
+
+---
+
+## 2026-05-28 — Lazy-load `sentence_transformers` in `profiles.embedder`
+
+The model singleton is loaded inside `_get_model()` rather than at
+module top so `pytest tests/test_health.py` (and the docker readiness
+probe) don't pay the ~2s torch import. The first profile write takes
+~2s extra; every subsequent write is ~50ms. Acceptable trade.
+
+---
+
+## 2026-05-28 — Clerk JWT verification skips audience check
+
+`jwt.decode(..., options={"verify_aud": False})`. Clerk's own backend
+SDK leaves `aud` verification off by default and treats the issuer
+(Clerk instance domain → JWKS) as the trust anchor. We can tighten
+once we move to a production Clerk instance with a known audience id;
+documented here so we don't ship a "secure" hardening that breaks the
+dev login flow.
+
+---
+
 ## 2026-05-28 — Pin `hangpost-matching` to a commit SHA, not a tag
 
 Sibling repo (`ai-bryguy101/hangpost-app`) has no GitHub releases, no

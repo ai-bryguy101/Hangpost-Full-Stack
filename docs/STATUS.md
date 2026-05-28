@@ -7,7 +7,7 @@
 
 Last updated: **2026-05-28**
 Active branch: `claude/hopeful-volta-ZOBFt`
-Current phase: **Phase 1 in flight — steps 1.1–1.3 landed; 1.4–1.6 next**
+Current phase: **Phase 1 essentially complete — 1.1–1.6 landed; needs end-to-end verify against Clerk + Postgres**
 
 ---
 
@@ -16,7 +16,7 @@ Current phase: **Phase 1 in flight — steps 1.1–1.3 landed; 1.4–1.6 next**
 | Phase | Status | Notes |
 |---|---|---|
 | 0. Foundation | ✅ done | Schema, ORM, seed (1,001 DC profiles), CI, ADRs 0001–0004 |
-| 1. Auth + Profile + Embeddings + `/recommendations` | 🟡 in flight | 1.1–1.3 landed (engine pinned at `94b15fb`, backfill script, `GET /recommendations` mounted). 1.4 Clerk + 1.5/1.6 profile writes pending. |
+| 1. Auth + Profile + Embeddings + `/recommendations` | 🟢 code complete | 1.1–1.6 landed (engine pinned at `94b15fb`, embedding backfill, `/recommendations`, Clerk JWT + `/me`, `POST /profiles` + `PATCH /profiles/me`, embed-on-write). Needs Clerk dev keys + Postgres to verify end-to-end. |
 | 2. Location + Feed MVP | ⏳ blocked on Figma/Stitch designs (ADR-0005) |
 | 3. Matching integration | partly absorbed into revised Phase 1 |
 | 4. Hangouts + Real-time | not started |
@@ -39,12 +39,23 @@ Current phase: **Phase 1 in flight — steps 1.1–1.3 landed; 1.4–1.6 next**
 
 ## What is intentionally NOT done yet
 
-- No Clerk JWT verification (only the `clerk_jwks_url` settings stub). `/recommendations` accepts `source_user_id` as a query param until 1.4 lands.
-- No `POST /profiles` or `PATCH /profiles/{me}` yet (1.5).
-- Embeddings on profile *write* not yet wired — only the backfill exists (1.6).
-- Frontend (`apps/web`) is one health-check landing page. Real UI waits on Phase 2 + Figma designs.
+- No frontend wiring yet — `apps/web` is one health-check landing page. Real UI waits on Phase 2 + Figma designs.
+- `/recommendations` still accepts `source_user_id` as a query param when no JWT is sent. Transitional fallback so the seed corpus stays demoable; drop it once the web app is on Clerk.
+- No Arq worker for embed-on-write yet — embedding runs inline on `POST /profiles` and `PATCH /profiles/me` (single-encode latency ~50 ms once the model is warm, ~2 s cold). Move to Arq when API box gets traffic.
+- Email-collision handling on the Clerk user upsert is first-write-wins; a second sub registering the same email will 500. Fine while users are synthetic; revisit before public launch.
 
-## What landed this session (2026-05-28)
+## What landed this session — Phase 1.4–1.6 (2026-05-28)
+
+- `auth/dependencies.py` — PyJWT + PyJWKClient verify Clerk JWTs against `CLERK_JWKS_URL`; upsert the `users` row on first sight. Two dependencies: `get_current_user` (required) and `get_current_user_optional` (used by `/recommendations`).
+- `auth/router.py` + `auth/schemas.py` — `GET /me` returns the authenticated `User` as a `MeRead`.
+- `profiles/schemas.py` — `ProfileCreate` (handle regex, age 13–120, dedupe-on-write) / `ProfileUpdate` (partial, `model_dump(exclude_unset=True)`) / `ProfileRead`.
+- `profiles/embedder.py` — process-cached `SentenceTransformer` with lazy `_get_model()` (so health checks don't pay the torch import) and `asyncio.to_thread`-wrapped `embed_profile_fields()` for the request path.
+- `profiles/router.py` — `POST /profiles`, `GET /profiles/me`, `PATCH /profiles/me`. Embedding recomputes whenever any of `{age, hometown, college, interests, liked_topics}` changes; handle collisions surface as 409.
+- `recommendations/router.py` — derives `source_user_id` from the JWT when present; the query param is now a transitional fallback (returns 400 if neither is provided).
+- `pyproject.toml` — adds `PyJWT[crypto]>=2.9`.
+- `main.py` — mounts the auth + profiles routers.
+
+## What landed earlier this session — Phase 1.1–1.3 (2026-05-28)
 
 - `apps/api/pyproject.toml` pins `hangpost-matching @ git+https://github.com/ai-bryguy101/hangpost-app@94b15fb` (no PyPI release yet, no tags on the sibling repo) and adds `sentence-transformers>=2.7`.
 - `apps/api/src/hangpost_api/matching/engine.py` adapter now delegates to the real export `rank_candidates_with_cold_start` (the stub called a non-existent `rank()`).
