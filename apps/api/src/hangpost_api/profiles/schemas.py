@@ -5,8 +5,9 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # 3-30 chars, letters/digits/underscore. Mirrors the CITEXT handle column;
 # loose enough for varied display tastes, strict enough to keep URLs sane.
@@ -67,6 +68,15 @@ class ProfileUpdate(BaseModel):
 
     ``handle`` is intentionally not updatable here; renaming a handle has
     URL/social-graph implications and gets its own endpoint when needed.
+
+    Semantics for explicit ``null``:
+    - Nullable columns (``avatar_url``, ``age``, ``hometown``, ``college``)
+      accept ``null`` and clear the stored value.
+    - Non-nullable columns (``display_name``, ``interests``,
+      ``liked_topics``) reject explicit ``null`` with a 422; clients should
+      omit the field instead of sending null to leave the value unchanged.
+      The validator below enforces that BEFORE Pydantic field coercion,
+      so the OpenAPI contract matches what the server actually accepts.
     """
 
     display_name: str | None = Field(default=None, min_length=1, max_length=50)
@@ -76,6 +86,19 @@ class ProfileUpdate(BaseModel):
     college: str | None = Field(default=None, max_length=160)
     interests: list[str] | None = Field(default=None, max_length=64)
     liked_topics: list[str] | None = Field(default=None, max_length=64)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_for_non_nullable(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        non_nullable = ("display_name", "interests", "liked_topics")
+        bad = [k for k in non_nullable if k in data and data[k] is None]
+        if bad:
+            raise ValueError(
+                f"fields must not be null (omit them to leave unchanged): {', '.join(bad)}"
+            )
+        return data
 
     @field_validator("interests", "liked_topics")
     @classmethod

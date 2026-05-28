@@ -38,6 +38,7 @@ from hangpost_api.matching.engine import is_available as matching_available
 from hangpost_api.matching.engine import rank as matching_rank
 from hangpost_api.profiles.models import Profile, UserLocation
 from hangpost_api.recommendations.models import RecommendationImpression
+from hangpost_api.safety.models import UserBlock
 from hangpost_api.social.models import Friendship
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
@@ -184,12 +185,21 @@ async def get_recommendations(
 
     # Step 2: hard radius pre-filter. ST_DWithin on geography uses meters
     # directly; this is the only place distance touches the pipeline.
+    # Also strip anyone the source has blocked or who has blocked the
+    # source — UserBlock is a hard block (see safety/models.py); these
+    # users must never surface in recommendations or impression logs.
+    blocked_user_ids = (
+        select(UserBlock.blocked_id).where(UserBlock.blocker_id == source_user_id)
+    ).union(
+        select(UserBlock.blocker_id).where(UserBlock.blocked_id == source_user_id)
+    )
     candidate_ids_stmt = (
         select(UserLocation.user_id)
         .join(User, User.id == UserLocation.user_id)
         .where(
             UserLocation.user_id != source_user_id,
             User.deleted_at.is_(None),
+            UserLocation.user_id.not_in(blocked_user_ids),
             func.ST_DWithin(UserLocation.geom, source_location.geom, radius_m),
         )
     )
