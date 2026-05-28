@@ -220,12 +220,17 @@ async def get_recommendations(
 
     # Step 5: precomputed embeddings (skip rows without one — the engine
     # treats a missing embedding as a 0.0 contribution, not an error).
+    # pgvector returns numpy arrays; coerce to plain Python floats so
+    # numpy scalars don't leak into MatchBreakdown and break json.dumps
+    # on the recommendation_impressions.breakdown_json (JSONB) column.
     embeddings: dict[str, list[float]] = {}
     if source_profile.embedding is not None:
-        embeddings[str(source_profile.user_id)] = list(source_profile.embedding)
+        embeddings[str(source_profile.user_id)] = [
+            float(x) for x in source_profile.embedding
+        ]
     for row in candidate_rows:
         if row.embedding is not None:
-            embeddings[str(row.user_id)] = list(row.embedding)
+            embeddings[str(row.user_id)] = [float(x) for x in row.embedding]
 
     ranked = matching_rank(
         source_engine_profile,
