@@ -27,7 +27,7 @@ class Profile(Base):
     """Public-facing profile; the matching engine reads these fields."""
 
     __tablename__ = "profiles"
-    __table_args__ = (CheckConstraint("age BETWEEN 13 AND 120", name="profiles_age_check"),)
+    __table_args__ = (CheckConstraint("age BETWEEN 18 AND 120", name="profiles_age_check"),)
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

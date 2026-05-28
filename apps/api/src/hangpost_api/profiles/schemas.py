@@ -43,7 +43,7 @@ class ProfileCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=50)
     handle: str = Field(min_length=3, max_length=30)
     avatar_url: str | None = Field(default=None, max_length=2048)
-    age: int | None = Field(default=None, ge=13, le=120)
+    age: int | None = Field(default=None, ge=18, le=120)
     hometown: str | None = Field(default=None, max_length=120)
     college: str | None = Field(default=None, max_length=160)
     interests: list[str] = Field(default_factory=list, max_length=64)
@@ -71,7 +71,7 @@ class ProfileUpdate(BaseModel):
 
     display_name: str | None = Field(default=None, min_length=1, max_length=50)
     avatar_url: str | None = Field(default=None, max_length=2048)
-    age: int | None = Field(default=None, ge=13, le=120)
+    age: int | None = Field(default=None, ge=18, le=120)
     hometown: str | None = Field(default=None, max_length=120)
     college: str | None = Field(default=None, max_length=160)
     interests: list[str] | None = Field(default=None, max_length=64)
