@@ -18,7 +18,13 @@ RUN python -m venv "$VIRTUAL_ENV"
 
 COPY apps/api/pyproject.toml apps/api/pyproject.toml
 COPY apps/api/src apps/api/src
-RUN pip install ./apps/api
+# Install CPU-only torch FIRST so sentence-transformers' transitive torch
+# requirement is already satisfied and pip doesn't reach for the default
+# wheel (which bundles CUDA / nvidia-cudnn — ~3 GB of dead weight on a
+# CPU-only deploy and the cause of "No space left on device" on Codespaces).
+RUN pip install --upgrade pip \
+    && pip install --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install ./apps/api
 
 # ---- runtime ----
 FROM python:3.12-slim AS runtime
