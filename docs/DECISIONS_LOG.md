@@ -10,6 +10,69 @@
 
 ---
 
+## 2026-05-28 — Age floor is 18, not 13
+
+Hangpost is positioned as a young-adult product (target ~23; seed
+corpus minimum was already 22). Adult-only floor avoids the
+COPPA / age-mixed friend-discovery regulatory weight and matches how
+the product is being pitched. Enforced at the DB (CHECK constraint
+in Alembic `0002`), the Pydantic boundary, and documented here so
+future "let's drop the floor to onboard high-schoolers" suggestions
+get triaged into an ADR instead of a quiet schema change.
+
+---
+
+## 2026-05-28 — Clerk publishable key passes via Docker build arg, not runtime env
+
+`NEXT_PUBLIC_*` env vars are inlined into the client bundle during
+`next build` — they cannot be swapped at runtime in a standalone
+Next.js image. So `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is forwarded
+through docker-compose's `build.args` and consumed by an `ARG` in
+`infra/docker/web.Dockerfile` before `npm run build` runs. The
+secret key (`CLERK_SECRET_KEY`) and the API's `CLERK_JWKS_URL` stay
+as runtime env vars — they're only read server-side. Changing the
+publishable key means rebuilding the web image (`docker compose up
+-d --build web`). Documented in `docs/CLERK_SETUP.md`.
+
+---
+
+## 2026-05-28 — `/demo` is intentionally throwaway scaffolding
+
+The web demo page exists to make the Phase-1 ranker clickable in a
+browser — not as production UI. No design pass, no Tailwind theme
+work, no shared component library. It will be replaced (or deleted)
+once the Phase 2 + 3 designs land and the real "Matched daily picks"
+surface is built. Keeping it small and ugly on purpose so nobody
+mistakes it for the product.
+
+---
+
+## 2026-05-28 — pgvector arrays must be coerced to plain Python floats at the load seam
+
+`Profile.embedding` comes back from pgvector as a `numpy.ndarray`.
+Wrapping with `list()` preserves the `numpy.float32` element type,
+which leaks through the engine's pure-Python cosine math into
+`MatchBreakdown.semantic_similarity`, then crashes `json.dumps` when
+SQLAlchemy tries to write the impression's `breakdown_json` into
+JSONB. Fix: `[float(x) for x in embedding]` everywhere we load
+a vector from the ORM. Caught during the Phase-1 verify pass; would
+have shown up the moment any embedding hit production.
+
+---
+
+## 2026-05-28 — CPU-only torch in the API runtime image
+
+The default `torch` wheel on Linux ships with CUDA libs
+(`nvidia-cudnn-cu13` etc), which add ~3 GB and fill the Codespace
+disk before `pip install ./apps/api` finishes. We have no GPU on
+Fly.io or Codespaces, so install torch from the CPU index first
+(`pip install --index-url https://download.pytorch.org/whl/cpu
+torch`) and `sentence-transformers` then reuses it. Anything that
+needs GPU later goes through a different image / runtime, not the
+API's default.
+
+---
+
 ## 2026-05-28 — Embed-on-write is inline, not Arq
 
 `POST /profiles` and `PATCH /profiles/me` synthesize the bio + encode
@@ -125,16 +188,12 @@ ADRs continue to live under `docs/adrs/` for big calls.
 
 ## Open questions (resolve before the relevant phase starts)
 
-### Sibling repo (`ai-bryguy101/hangpost-app`) — needed for Phase 1.1
+### Sibling repo — needed before going public
 
-- [ ] Is `hangpost-matching` on **PyPI**, or do we install from a **git tag** (`pip install hangpost-matching @ git+https://github.com/ai-bryguy101/hangpost-app@<tag>`)?
-- [ ] Confirmed **release tag or commit SHA** to pin.
-- [ ] Public API still includes: `UserProfile`, `Query`, `rank(source, candidates) -> list[Candidate]`, `profile_to_text(profile) -> str`, `LearnedRanker.fit(queries)`, `MatchBreakdown`?
-- [ ] Embedding model: is `sentence-transformers/all-MiniLM-L6-v2` (384-dim) still the engine's choice? `apps/api/src/hangpost_api/profiles/models.py:23` is pinned to 384.
-- [ ] Is the engine pip-installable on Python 3.12 (matching CI)? Any system deps (e.g. `libgomp`) the API Dockerfile needs?
-- [ ] Repo rename status — `hangpost-app` → `hangpost-matching-engine` (mentioned in `CLAUDE.md` header). Affects the git URL we pin.
+- [ ] Sibling repo rename (`hangpost-app` → `hangpost-matching-engine`) — still pending upstream. Affects the git URL we pin.
+- [ ] Upstream tag for `hangpost-matching`. Swap the SHA pin for the first tag they cut.
 
 ### Design pipeline — needed for Phase 2
 
 - [ ] Where do shared design tokens live? Figma library only, or exported to a JSON file in the repo?
-- [ ] Stitch-generated code: do we want to commit it raw, or hand-translate to shadcn/ui? (Recommendation in ADR-0005: hand-translate.)
+- [ ] Stitch-generated code: commit raw, or hand-translate to shadcn/ui? (Recommendation in ADR-0005: hand-translate.)
