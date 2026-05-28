@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { fetchRecommendations, type MatchBreakdown } from "@/lib/api";
+import {
+  fetchRecommendations,
+  type MatchBreakdown,
+  type RecommendationsResponse,
+} from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -49,15 +53,17 @@ export default async function DemoPage({
   // Auth precedence matches the API: a Clerk JWT wins; otherwise we
   // fall back to the source_user_id query param (the synthetic-corpus
   // demo path). If neither is present, render the help block.
-  const { userId, getToken } = await auth();
-  const bearerToken = userId ? await getToken() : null;
+  // Keep `session` whole rather than destructuring so Clerk's `getToken`
+  // keeps its `this` binding.
+  const session = await auth();
+  const bearerToken = session.userId ? await session.getToken() : null;
   const sourceUserId = params.source_user_id;
 
   if (!bearerToken && !sourceUserId) {
     return <EmptyState />;
   }
 
-  let payload;
+  let payload: RecommendationsResponse | undefined;
   let error: string | null = null;
   try {
     payload = await fetchRecommendations({
