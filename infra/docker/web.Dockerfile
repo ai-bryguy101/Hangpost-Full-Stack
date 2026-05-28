@@ -28,4 +28,5 @@ RUN useradd --create-home --uid 10001 appuser
 USER appuser
 
 EXPOSE 3000
-CMD ["node", "apps/web/server.js"]
+# Next standalone emits server.js at the bundle root, copied to /app above.
+CMD ["node", "server.js"]

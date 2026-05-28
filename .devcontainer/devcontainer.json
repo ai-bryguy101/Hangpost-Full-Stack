@@ -1,11 +1,8 @@
 {
   "name": "hangpost",
+  // universal already bundles Docker, Python, and Node; layering the
+  // matching features on top is what broke the build (recovery mode).
   "image": "mcr.microsoft.com/devcontainers/universal:2-linux",
-  "features": {
-    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" },
-    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
-  },
   "forwardPorts": [3000, 8000, 5432, 6379],
   "postCreateCommand": "pip install -e 'apps/api[dev]' && (cd apps/web && npm install)",
   "customizations": {

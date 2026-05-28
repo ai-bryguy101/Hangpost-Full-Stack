@@ -3,7 +3,14 @@
  * generated from the FastAPI OpenAPI schema (packages/shared-types).
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Server-side renders run inside the web container, where "localhost" is the
+// web container itself — not the API. Use the internal service URL there and
+// the public (browser-reachable) URL in the client.
+const BROWSER_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_URL =
+  typeof window === "undefined"
+    ? process.env.API_INTERNAL_URL ?? BROWSER_API_URL
+    : BROWSER_API_URL;
 
 export interface ApiHealth {
   ok: boolean;
