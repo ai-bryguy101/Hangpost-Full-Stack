@@ -7,7 +7,7 @@
 
 Last updated: **2026-05-28**
 Active branch: `claude/hopeful-volta-ZOBFt`
-Current phase: **Phase 1 essentially complete — 1.1–1.6 landed; needs end-to-end verify against Clerk + Postgres**
+Current phase: **Phase 1 complete — verified end-to-end against the docker-compose stack on 2026-05-28**
 
 ---
 
@@ -16,7 +16,7 @@ Current phase: **Phase 1 essentially complete — 1.1–1.6 landed; needs end-to
 | Phase | Status | Notes |
 |---|---|---|
 | 0. Foundation | ✅ done | Schema, ORM, seed (1,001 DC profiles), CI, ADRs 0001–0004 |
-| 1. Auth + Profile + Embeddings + `/recommendations` | 🟢 code complete | 1.1–1.6 landed (engine pinned at `94b15fb`, embedding backfill, `/recommendations`, Clerk JWT + `/me`, `POST /profiles` + `PATCH /profiles/me`, embed-on-write). Needs Clerk dev keys + Postgres to verify end-to-end. |
+| 1. Auth + Profile + Embeddings + `/recommendations` | ✅ done | 1.1–1.6 landed and verified end-to-end on docker-compose. 1,000 profiles seeded + embedded; `GET /recommendations` returns the engine's six-tier sort with semantic-similarity 0.84–0.88 on top candidates; `recommendation_impressions` logs every surfaced row. Clerk-auth path is wired but only smoke-tested (the seed corpus has no Clerk identities by design). |
 | 2. Location + Feed MVP | ⏳ blocked on Figma/Stitch designs (ADR-0005) |
 | 3. Matching integration | partly absorbed into revised Phase 1 |
 | 4. Hangouts + Real-time | not started |
@@ -43,6 +43,26 @@ Current phase: **Phase 1 essentially complete — 1.1–1.6 landed; needs end-to
 - `/recommendations` still accepts `source_user_id` as a query param when no JWT is sent. Transitional fallback so the seed corpus stays demoable; drop it once the web app is on Clerk.
 - No Arq worker for embed-on-write yet — embedding runs inline on `POST /profiles` and `PATCH /profiles/me` (single-encode latency ~50 ms once the model is warm, ~2 s cold). Move to Arq when API box gets traffic.
 - Email-collision handling on the Clerk user upsert is first-write-wins; a second sub registering the same email will 500. Fine while users are synthetic; revisit before public launch.
+
+## Verify pass (2026-05-28)
+
+Booted the docker-compose stack in Codespaces and walked the demo path
+end-to-end. Top-3 results against a random seed user returned hometown
++ college matches with `semantic_similarity` in the 0.84–0.88 range —
+real engine signal flowing through pgvector → engine → JSONB log. Fixes
+caught during the verify pass:
+
+- `infra/docker/api.Dockerfile`: install CPU-only torch first
+  (`--index-url https://download.pytorch.org/whl/cpu`); the default
+  wheel pulled `nvidia-cudnn-cu13` and filled the Codespace disk.
+- `apps/api/src/hangpost_api/seed.py` + Dockerfile: ship `apps/api/seeds`
+  inside the image, and resolve `DEFAULT_CSV` across three known
+  locations so non-editable installs work.
+- `apps/api/src/hangpost_api/recommendations/router.py`: coerce
+  `Profile.embedding` from pgvector's numpy array to plain Python floats
+  before passing to the engine — otherwise `numpy.float32` leaked into
+  `MatchBreakdown.semantic_similarity` and crashed `json.dumps` on the
+  JSONB column.
 
 ## What landed this session — Phase 1.4–1.6 (2026-05-28)
 
