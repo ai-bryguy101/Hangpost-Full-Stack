@@ -5,6 +5,15 @@ loaded automatically at the start of every Claude Code session and
 captures the product vision, architectural decisions, and operator
 environment that must NOT be re-derived or guessed.
 
+**Companion memory files — read these at the start of every session too:**
+
+- `docs/STATUS.md` — where we are *right now* (current phase, what's
+  done, what's in flight, session log). Updated at the **end** of every
+  session, in the same commit as the work.
+- `docs/DECISIONS_LOG.md` — running journal of small calls that don't
+  merit a full ADR. Append-only.
+- `docs/adrs/` — defendable architectural decisions.
+
 The **matching engine** that powers this app lives in a separate repo
 (`ai-bryguy101/hangpost-app` — to be renamed `hangpost-matching-engine`).
 This app installs it as a pip dependency. Do NOT reimplement matching
@@ -174,16 +183,20 @@ weekly retraining job is Phase 7.
 
 ## 6. Build phases
 
-| Phase | Outcome |
-|---|---|
-| 0. Foundation | Codespaces + docker-compose stack runs; Alembic migrations apply; CI green |
-| 1. Auth + Profile | Clerk integrated; profile create/edit; embedding writes to pgvector |
-| 2. Location + Feed MVP | PWA geolocation; PostGIS radius query; posterboard UI |
-| 3. Matching integration | `/recommendations` endpoint; impression logging; `MatchBreakdown` UI |
-| 4. Hangouts + Real-time | RSVP flow; WebSocket notifications via Redis pub/sub |
-| 5. Friend graph + Social | Friend requests; contact import with consent; blocks; reports |
-| 6. Observability + hardening | OTel traces; Sentry; rate limiting; CSP; load test |
-| 7. Close the ML loop | Outcome ETL; weekly retrain; model registry; A/B harness |
+Status legend: ✅ done · 🟡 in progress · ⏳ not started. Live progress and
+per-step notes live in `docs/STATUS.md` — update both whenever a phase
+changes state.
+
+| Phase | Status | Outcome |
+|---|---|---|
+| 0. Foundation | ✅ | Codespaces + docker-compose stack runs; Alembic migrations apply; CI green |
+| 1. Auth + Profile + Matching | 🟡 | Pin `hangpost-matching`; backfill embeddings on seed corpus; `/recommendations` against the sibling-repo ranker; Clerk; profile create/edit. (Re-sequenced — see `docs/DECISIONS_LOG.md` 2026-05-28.) |
+| 2. Location + Feed MVP | ⏳ | PWA geolocation; PostGIS radius query; posterboard UI (designs from Figma per ADR-0005) |
+| 3. Matching deepening | ⏳ | `MatchBreakdown` UI; outcome logging UI hooks (logging seam exists in Phase 1) |
+| 4. Hangouts + Real-time | ⏳ | RSVP flow; WebSocket notifications via Redis pub/sub |
+| 5. Friend graph + Social | ⏳ | Friend requests; contact import with consent; blocks; reports |
+| 6. Observability + hardening | ⏳ | OTel traces; Sentry; rate limiting; CSP; Trivy scan; load test |
+| 7. Close the ML loop | ⏳ | Outcome ETL; weekly retrain; model registry; A/B harness |
 
 Each phase ends in a deployable, demoable increment.
 
