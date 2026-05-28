@@ -39,9 +39,29 @@ from hangpost_api.auth.models import User
 from hangpost_api.core.db import SessionFactory
 from hangpost_api.profiles.models import Profile, UserLocation
 
-# Default fixture path: apps/api/seeds/test_profiles.csv, resolved
-# relative to this file so it works regardless of the current directory.
-DEFAULT_CSV = Path(__file__).resolve().parents[2] / "seeds" / "test_profiles.csv"
+# Default fixture path. The seed CSV lives at apps/api/seeds/test_profiles.csv
+# in the repo. Resolution order:
+#   1. Path relative to this file (editable install / running from apps/api).
+#   2. Path relative to CWD (any invocation from the apps/api root).
+#   3. The absolute path the runtime Dockerfile mounts.
+# The first one that exists wins; if none do, the error message points at #1
+# so the operator knows where the CSV was expected.
+_CSV_NAME = "test_profiles.csv"
+_CANDIDATE_CSV_PATHS = (
+    Path(__file__).resolve().parents[2] / "seeds" / _CSV_NAME,
+    Path.cwd() / "seeds" / _CSV_NAME,
+    Path("/app/apps/api/seeds") / _CSV_NAME,
+)
+
+
+def _resolve_default_csv() -> Path:
+    for candidate in _CANDIDATE_CSV_PATHS:
+        if candidate.exists():
+            return candidate
+    return _CANDIDATE_CSV_PATHS[0]
+
+
+DEFAULT_CSV = _resolve_default_csv()
 
 # All synthetic users live in Washington DC. (lat, lon) of the city center.
 DC_CENTER_LAT = 38.9072

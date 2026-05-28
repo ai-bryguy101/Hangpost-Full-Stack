@@ -190,7 +190,7 @@ changes state.
 | Phase | Status | Outcome |
 |---|---|---|
 | 0. Foundation | ✅ | Codespaces + docker-compose stack runs; Alembic migrations apply; CI green |
-| 1. Auth + Profile + Matching | 🟡 | Pin `hangpost-matching`; backfill embeddings on seed corpus; `/recommendations` against the sibling-repo ranker; Clerk; profile create/edit. (Re-sequenced — see `docs/DECISIONS_LOG.md` 2026-05-28.) |
+| 1. Auth + Profile + Matching | ✅ | Engine pinned; embeddings backfilled; `/recommendations` returns the sibling-repo ranker's six-tier sort with full `MatchBreakdown` and impression logging; Clerk JWT verification + `GET /me` + profile create/edit with embed-on-write; `/demo` page renders results in a browser. Verified end-to-end on docker-compose 2026-05-28. See `docs/STATUS.md` for the "real-user UI" follow-on still pending. |
 | 2. Location + Feed MVP | ⏳ | PWA geolocation; PostGIS radius query; posterboard UI (designs from Figma per ADR-0005) |
 | 3. Matching deepening | ⏳ | `MatchBreakdown` UI; outcome logging UI hooks (logging seam exists in Phase 1) |
 | 4. Hangouts + Real-time | ⏳ | RSVP flow; WebSocket notifications via Redis pub/sub |

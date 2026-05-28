@@ -52,6 +52,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://hangpost:hangpost@db:5432/hangpost
       REDIS_URL: redis://redis:6379/0
       ENVIRONMENT: development
+      # Clerk JWKS endpoint for JWT verification. Leave unset to keep the
+      # auth-required endpoints disabled (every /me / profile call 503s).
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-}
     ports: ["8000:8000"]
     depends_on:
       db:
@@ -65,11 +68,19 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/web.Dockerfile
+      args:
+        # NEXT_PUBLIC_* is baked into the client bundle at build time.
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
     environment:
       # Browser uses localhost (host port mapping); SSR inside the container
       # must reach the API by its compose service name.
       NEXT_PUBLIC_API_URL: http://localhost:8000
       API_INTERNAL_URL: http://api:8000
+      # Clerk publishable key (browser-safe) + secret key (server-only).
+      # Set both as Codespaces secrets to enable sign-in / sign-up; leave
+      # unset and Clerk's UI components quietly degrade until they're set.
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
     ports: ["3000:3000"]
     depends_on:
       api:

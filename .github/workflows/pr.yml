@@ -27,7 +27,13 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install
-        run: pip install -e ".[dev]"
+        # CPU-only torch first so the transitive sentence-transformers dep
+        # doesn't pull ~3 GB of CUDA libs and fill the GHA runner disk
+        # (same fix that's in infra/docker/api.Dockerfile).
+        run: |
+          pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install -e ".[dev]"
       - name: Ruff
         run: ruff check .
       - name: Mypy
@@ -55,6 +61,13 @@ jobs:
       - name: Test
         run: npm test
       - name: Build
+        # Clerk requires a publishable key at build time (NEXT_PUBLIC_* is
+        # inlined into the client bundle). The placeholder value below is
+        # never used for actual auth — the real key comes from Codespaces
+        # secrets / Fly.io / Vercel — but Clerk will refuse to build without
+        # something that parses as a key.
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2lhcmEtY2ktcGxhY2Vob2xkZXIkCg
         run: npm run build
 
   docker:
@@ -74,6 +87,9 @@ jobs:
           context: .
           file: infra/docker/web.Dockerfile
           push: false
+          # See the "web" job above for why a placeholder key is needed.
+          build-args: |
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2lhcmEtY2ktcGxhY2Vob2xkZXIkCg
 
   # NOTE: dependency/container vulnerability scanning (Trivy) is part of
   # Phase 6 (observability + hardening), where it becomes a blocking gate

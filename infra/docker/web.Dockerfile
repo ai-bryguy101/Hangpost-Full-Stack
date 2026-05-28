@@ -9,6 +9,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY apps/web/package.json apps/web/package-lock.json* ./
 RUN npm install
 
+# NEXT_PUBLIC_* env vars are inlined into the client bundle during `next
+# build`, so the Clerk publishable key has to be present here, not just
+# at runtime. Forwarded as a build arg from docker-compose. Leave unset
+# and Clerk's UI quietly degrades until the secret is configured and the
+# image rebuilt.
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=""
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+
 COPY apps/web ./
 RUN npm run build
 
