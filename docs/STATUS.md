@@ -44,6 +44,34 @@ Current phase: **Phase 1 complete — verified end-to-end against the docker-com
 - No Arq worker for embed-on-write yet — embedding runs inline on `POST /profiles` and `PATCH /profiles/me` (single-encode latency ~50 ms once the model is warm, ~2 s cold). Move to Arq when API box gets traffic.
 - Email-collision handling on the Clerk user upsert is first-write-wins; a second sub registering the same email will 500. Fine while users are synthetic; revisit before public launch.
 
+## Web demo + Clerk wiring (2026-05-28)
+
+Phase 1 is verified end-to-end, but the only way to see it was a curl.
+Added a minimal browser demo + Clerk so the loop is also clickable:
+
+- **`apps/web/src/app/demo/page.tsx`** — server-rendered recommendations
+  page. Reads either a Clerk JWT (when signed in) or a
+  `?source_user_id=<uuid>` query param, calls `GET /recommendations`,
+  and renders the top-N with display name, handle, score, tier label,
+  and a row of breakdown chips per candidate (lit chips are signals
+  that fired). Hits the seed corpus today; will hit real users once
+  profile create lands.
+- **`apps/web/src/middleware.ts` + `<ClerkProvider>` in `layout.tsx`** —
+  Clerk wired with sign-in / sign-up / `UserButton` in the header. No
+  pages are auth-gated yet — sign-in just exists.
+- **`docs/CLERK_SETUP.md`** — operator runbook for the three Codespaces
+  secrets (publishable key, secret key, JWKS URL), how to verify, and
+  what intentionally still 404s after sign-up (profile auto-create is
+  next).
+- **`infra/compose/docker-compose.yml` + `infra/docker/web.Dockerfile`** —
+  pass `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` as a build arg (it's inlined
+  into the JS bundle at build time, not runtime); pass
+  `CLERK_SECRET_KEY` to the web service and `CLERK_JWKS_URL` to the
+  API service at runtime.
+- **`.github/workflows/pr.yml`** — set a placeholder publishable key in
+  the web build + docker build steps so CI doesn't break on the empty
+  default.
+
 ## Verify pass (2026-05-28)
 
 Booted the docker-compose stack in Codespaces and walked the demo path
