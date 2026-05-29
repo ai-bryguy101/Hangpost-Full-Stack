@@ -1,44 +1,13 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import {
-  ApiError,
-  fetchRecommendations,
-  type MatchBreakdown,
-  type RecommendationsResponse,
-} from "@/lib/api";
+import { ApiError, fetchRecommendations, type RecommendationsResponse } from "@/lib/api";
+import RecommendationList from "./RecommendationList";
 
 export const dynamic = "force-dynamic";
 
 interface DemoSearchParams {
   radius_m?: string;
   limit?: string;
-}
-
-// Fields that contribute to MatchBreakdown.total_score. The rendered chip
-// is "lit" when its component is > 0 — a visual proxy for "this signal
-// actually fired for this pair".
-const COMPONENT_FIELDS: Array<{
-  key: keyof MatchBreakdown;
-  label: string;
-}> = [
-  { key: "semantic_similarity", label: "semantic" },
-  { key: "hometown_match", label: "hometown" },
-  { key: "college_match", label: "college" },
-  { key: "age_compatibility", label: "age" },
-  { key: "interest_overlap", label: "interests" },
-  { key: "liked_topic_overlap", label: "likes" },
-  { key: "mutual_friends", label: "mutuals" },
-];
-
-function tierLabel(b: MatchBreakdown): string {
-  if (b.has_mutual_friends && b.has_both_shared_background)
-    return "Tier 1 · mutual + hometown + college";
-  if (b.has_mutual_friends && b.has_shared_background)
-    return "Tier 2 · mutual + shared background";
-  if (b.has_mutual_friends) return "Tier 3 · mutual friend";
-  if (b.has_both_shared_background) return "Tier 4 · hometown + college";
-  if (b.has_shared_background) return "Tier 5 · hometown or college";
-  return "Tier 6 · compatibility only";
 }
 
 export default async function DemoPage({
@@ -108,53 +77,7 @@ export default async function DemoPage({
       )}
 
       {payload && payload.results.length > 0 && (
-        <ol className="flex flex-col gap-3">
-          {payload.results.map((r) => (
-            <li
-              key={r.user_id}
-              className="rounded-lg border border-black/10 p-4 dark:border-white/15"
-            >
-              <div className="flex items-baseline justify-between gap-3">
-                <div>
-                  <div className="text-sm opacity-50">#{r.rank_position}</div>
-                  <h2 className="text-lg font-medium">{r.display_name}</h2>
-                  <p className="text-sm opacity-60">@{r.handle}</p>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-lg">
-                    {r.score.toFixed(3)}
-                  </div>
-                  <div className="text-xs opacity-50">total_score</div>
-                </div>
-              </div>
-
-              <p className="mt-2 text-xs uppercase tracking-wide opacity-50">
-                {tierLabel(r.breakdown)}
-              </p>
-
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {COMPONENT_FIELDS.map(({ key, label }) => {
-                  const value = r.breakdown[key] as number;
-                  const lit = value > 0;
-                  return (
-                    <span
-                      key={key}
-                      className={[
-                        "rounded-full border px-2 py-0.5 font-mono text-[11px]",
-                        lit
-                          ? "border-emerald-500/50 bg-emerald-500/10"
-                          : "border-black/10 opacity-40 dark:border-white/15",
-                      ].join(" ")}
-                      title={`${label}: ${value}`}
-                    >
-                      {label} {value.toFixed(2)}
-                    </span>
-                  );
-                })}
-              </div>
-            </li>
-          ))}
-        </ol>
+        <RecommendationList results={payload.results} />
       )}
 
       <p className="mt-8 text-xs opacity-50">

@@ -48,6 +48,12 @@ class RecommendationImpression(Base):
     model_version: Mapped[str] = mapped_column(Text, nullable=False)
     # The full MatchBreakdown returned by the ranker, stored verbatim.
     breakdown_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    # Raw ranker *inputs* at impression time (candidate-pool size, embedding
+    # presence, mutual-friend count, hometown/college match, overlap counts).
+    # Logged so the offline trainer can replay the exact feature vector even
+    # after profiles/the friend graph drift (DECISIONS_LOG 2026-05-29).
+    # Nullable: impressions logged before this column existed have no snapshot.
+    features_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
 
 class RecommendationOutcome(Base):

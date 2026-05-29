@@ -76,13 +76,31 @@ If `/me` returns 503 → the API didn't see `CLERK_JWKS_URL`. Restart
 `api`. If it returns 401 → the JWKS URL is wrong; double-check it in
 the Clerk dashboard.
 
-## 6. What's not done yet (intentional)
+## 6. The real-user flow (after sign-up)
 
-- **No profile auto-creation on sign-up.** The first `/profiles` call
-  after sign-up returns 404 — `POST /profiles` exists and works, but no
-  UI calls it yet. That's the next slice of Phase 1.6.
-- **`/recommendations` against a fresh Clerk user.** Returns 404
-  ("Source profile not found.") until that user has a profile + a
-  `user_locations` row. The seed-corpus demo path
-  (`/demo?source_user_id=...`) stays the simplest way to see the engine
-  end-to-end.
+Sign-up now redirects to **`/profile/new`** (`forceRedirectUrl`). Fill the
+form, tap **"Use my current location"** (browser geolocation → `POST
+/user-locations`), then submit — the page creates your profile and sends
+you to `/demo`, where you're ranked against the seed corpus and your
+clicks (`viewed` / `profile_opened` / `friend_request_sent`) are logged
+as outcomes.
+
+Two things to know:
+
+- **The seed corpus lives in Washington DC.** Codespaces runs in the
+  cloud, so your browser's geolocation is wherever *you* are — likely not
+  DC. If `/demo` shows "No candidates within 5000 m", widen the radius:
+  visit `/demo?radius_m=50000`. (The pipeline is working; it's a geography
+  mismatch, not a bug.)
+- The old `/demo?source_user_id=...` seed path is **gone** —
+  `/recommendations` is Clerk-JWT-only now. A signed-in user with no
+  profile or no location gets an onboarding CTA back to `/profile/new`
+  instead of an error.
+
+To see the ML-loop measurement after clicking around, run the offline
+eval in the Codespace terminal:
+
+```bash
+docker compose -f infra/compose/docker-compose.yml exec api \
+  python -m scripts.evaluate --days 7   # writes docs/eval/<date>-eval.md
+```

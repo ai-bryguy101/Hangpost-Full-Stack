@@ -38,6 +38,14 @@ def test_user_locations_post_requires_bearer_token() -> None:
     assert resp.status_code == 401
 
 
+def test_recommendations_outcome_requires_bearer_token() -> None:
+    resp = client.post(
+        "/recommendations/00000000-0000-0000-0000-000000000000/outcomes",
+        json={"action": "viewed"},
+    )
+    assert resp.status_code == 401
+
+
 def test_recommendations_requires_bearer_token() -> None:
     """No JWT — the endpoint is Clerk-auth-only now, so it must 401.
 

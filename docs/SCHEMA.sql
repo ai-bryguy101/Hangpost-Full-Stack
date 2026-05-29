@@ -146,7 +146,8 @@ CREATE TABLE recommendation_impressions (
     rank_position   SMALLINT NOT NULL,
     score           REAL NOT NULL,
     model_version   TEXT NOT NULL,
-    breakdown_json  JSONB NOT NULL
+    breakdown_json  JSONB NOT NULL,
+    features_json   JSONB              -- raw ranker inputs snapshot (added 0003)
 );
 CREATE INDEX rec_imp_source ON recommendation_impressions (source_user_id, surfaced_at DESC);
 

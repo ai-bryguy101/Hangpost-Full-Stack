@@ -5,8 +5,11 @@
 > at the **end** of every session in the same commit as the work.
 
 Last updated: **2026-05-29**
-Active branch: `claude/nifty-lamport-12eR7` (PR A — real-user demo loop)
-Current phase: **Phase 1 ✅ complete + real-user onboarding loop shipped**
+Active branch: `claude/nifty-lamport-12eR7` (PR B — close the ML loop)
+Current phase: **Phase 1 ✅ + real-user loop (PR A, merged) + ML loop closed (PR B)**
+PR A merged as #7 — and with it `main`'s CI went green for the first
+time (it had been red since #5 on a stale `type: ignore` + a malformed
+CI Clerk placeholder key, both fixed in #7).
 Resume framing (CLAUDE.md §10): every next PR must strengthen the
 "I shipped a recommender, evaluated it, and closed the loop on real
 outcomes" pitch. If a change doesn't, postpone it.
@@ -40,16 +43,17 @@ outcomes" pitch. If a change doesn't, postpone it.
   - `GET /me` (Clerk JWT required)
   - `POST /profiles`, `GET /profiles/me`, `PATCH /profiles/me` (Clerk JWT required; embed-on-write)
   - `POST /user-locations` (Clerk JWT required) — upserts the caller's `user_locations` row from a browser `navigator.geolocation` fix (EWKT `SRID=4326;POINT(lon lat)`, same format as the seed path). Lives in the `profiles` package (`profiles/locations.py`) since that package owns the table.
-  - `GET /recommendations` (**Clerk JWT only** — the `source_user_id` query-param fallback was retired) — `ST_DWithin` pre-filter → load mutual-friend sets → engine `rank_candidates_with_cold_start` → log `recommendation_impressions` → return ranked list with full `MatchBreakdown`.
-- Schema: 2 Alembic revisions applied (`0001_initial_schema`, `0002_age_floor_18`). Profile age constraint is 18–120.
+  - `GET /recommendations` (**Clerk JWT only** — the `source_user_id` query-param fallback was retired) — `ST_DWithin` pre-filter → load mutual-friend sets → engine `rank_candidates_with_cold_start` → log `recommendation_impressions` (now with an `impression_id` per result in the response **and** a `features_json` raw-input snapshot per row) → return the ranked list with full `MatchBreakdown`.
+  - `POST /recommendations/{impression_id}/outcomes` (Clerk JWT required) — records a training label (`action` ∈ viewed/profile_opened/friend_request_sent/blocked/hangout_rsvped) by upserting `recommendation_outcomes`. Idempotent + additive (actions accumulate on one row); ownership-checked (404 if the impression isn't the caller's).
+- Schema: 3 Alembic revisions applied (`0001_initial_schema`, `0002_age_floor_18`, `0003_impression_features_json`). Profile age constraint is 18–120.
 
 **Web (`apps/web`)**
 
 - Homepage with API health status + link to `/demo`.
 - `/profile/new` client form (display name, handle, age, hometown, college, interests, liked_topics) with a **"Use my current location"** button that calls `navigator.geolocation` → `POST /user-locations`. Submit is gated on location being set (so landing on `/demo` can't 409), POSTs `/profiles`, then redirects to `/demo`. A 409 (profile already exists) redirects to `/demo` instead of erroring.
-- `/demo` server-rendered page rendering top-N recommendations (**Clerk-JWT-only** now). A signed-in user with no profile (404) or no location (409) gets an onboarding CTA to `/profile/new` instead of a raw error.
+- `/demo` server-rendered page rendering top-N recommendations (**Clerk-JWT-only** now). A signed-in user with no profile (404) or no location (409) gets an onboarding CTA to `/profile/new` instead of a raw error. Cards live in a `"use client"` `RecommendationList` that **captures outcomes**: `viewed` fires once per card on mount, clicking a name fires `profile_opened`, "Add friend" fires `friend_request_sent`; "Dismiss" hides a card client-side only (no DB write — see DECISIONS_LOG on not faking a `blocked` label).
 - Clerk wired: `clerkMiddleware()`, `<ClerkProvider>`, `SignInButton` / `SignUpButton` / `UserButton`. **Sign-up redirects to `/profile/new`** (`forceRedirectUrl`).
-- `lib/api.ts` now has a shared typed `apiFetch` seam + `ApiError` (carries the HTTP status so callers can branch on 404/409); `createProfile` / `postUserLocation` helpers route through it.
+- `lib/api.ts` shared typed `apiFetch` seam + `ApiError`; `createProfile` / `postUserLocation` / `postOutcome` route through it.
 
 **Infra**
 
@@ -90,28 +94,28 @@ against the 1,000 synthetic Washingtonians in 30 seconds.
 - Remaining: live-Clerk click-through verification (needs the Codespaces
   secrets). Next up is **PR B**.
 
-### PR B — Close the ML loop (Phase 3 + 7 seam, pulled forward)
+### PR B — Close the ML loop ✅ DONE (branch `claude/nifty-lamport-12eR7`)
 **Goal:** the system not only *recommends* but also *measures whether
-the recommendation was good*. This is the headline AI-engineering
-story; bringing even a thin version forward now strengthens every
-recruiter conversation.
-- Endpoint: `POST /recommendations/{impression_id}/outcomes`
-  (action ∈ {viewed, profile_opened, friend_request_sent, blocked,
-  hangout_rsvped}). Table already exists (`recommendation_outcomes`),
-  nothing writes to it today.
-- Three click handlers on the `/demo` cards that POST outcomes
-  (mark-viewed on view, profile-open on click, "not interested" on
-  dismiss).
-- `apps/api/scripts/evaluate.py`: pull last N days of
-  impressions+outcomes, compute NDCG@10 + Recall@10 for the current
-  ranker vs. a random baseline and a popularity-only baseline, write a
-  markdown report to `docs/eval/`. Even one report committed beats no
-  measurement story.
-- Feature snapshot: also log the raw inputs into the ranker on each
-  impression (embedding hash, mutual-friend count, hometown bool, etc.)
-  so the offline trainer can replay history when Phase 7 lands.
+the recommendation was good* — the headline AI-engineering story.
+- ✅ `POST /recommendations/{impression_id}/outcomes` (action ∈ {viewed,
+  profile_opened, friend_request_sent, blocked, hangout_rsvped}); upserts
+  `recommendation_outcomes`, idempotent + additive, ownership-checked.
+- ✅ `/demo` outcome capture via the `RecommendationList` client component:
+  `viewed` on mount, `profile_opened` on name click, `friend_request_sent`
+  on "Add friend". (Swapped the planned "not interested"→`blocked` for a
+  clean positive signal + a client-only Dismiss — see DECISIONS_LOG.)
+- ✅ `scripts/evaluate.py` + pure stdlib `recommendations/evaluation.py`:
+  NDCG@10 + Recall@10 for the live ranker vs. popularity + random
+  baselines, grouped by query, written to `docs/eval/`. Metrics
+  unit-tested (`tests/test_evaluation.py`); a synthetic self-test report
+  is committed (`docs/eval/SYNTHETIC-self-test.md`) — the first **real**
+  report is a Codespaces step once outcomes accrue.
+- ✅ Feature snapshot: `recommendation_impressions.features_json` (new,
+  nullable; Alembic `0003`) logs the raw ranker inputs per impression so
+  Phase 7 can replay history without feature-skew. `impression_id` is now
+  in the GET response so the client can POST outcomes.
 
-### PR C — Observable and presentable
+### PR C — Observable and presentable  ← **next**
 **Goal:** the repo *reads* as well as it *runs*. Smallest PR but the
 one a recruiter sees first.
 - Wire Sentry on browser + API (5-minute job).
@@ -146,6 +150,36 @@ and all make the resume pitch stronger today.
 ---
 
 ## Session log
+
+### 2026-05-29 — PR B: close the ML loop (branch `claude/nifty-lamport-12eR7`)
+
+- **Outcome capture**: `POST /recommendations/{impression_id}/outcomes`
+  (idempotent + additive upsert, ownership-checked); `OutcomeAction`
+  enum + `OutcomeCreate`/`OutcomeRead` schemas. GET now returns an
+  `impression_id` per result (generated in Python, not via bulk-insert
+  RETURNING) so the client can post against it.
+- **Feature snapshot**: new nullable `recommendation_impressions.features_json`
+  (Alembic `0003` + SCHEMA.sql) logging raw ranker inputs per impression;
+  batch `surfaced_at` pinned in Python so the evaluator can group
+  impressions into queries deterministically.
+- **Offline eval**: pure-stdlib `recommendations/evaluation.py` (NDCG@10 /
+  Recall@10 + graded relevance + popularity/random baselines), unit-tested;
+  thin DB driver `scripts/evaluate.py` writes a markdown report to
+  `docs/eval/`. Committed `docs/eval/README.md` + a clearly-labeled
+  `SYNTHETIC-self-test.md` generated by the real module (synthetic inputs,
+  real math: live 0.93 vs popularity 0.58 vs random 0.57 NDCG@10). The
+  first real report is a Codespaces step once outcomes exist.
+- **Web**: extracted `/demo` cards into a `"use client"` `RecommendationList`
+  that fires `viewed`/`profile_opened`/`friend_request_sent`; `postOutcome`
+  added to `lib/api.ts`; vitest added.
+- **Decision** (DECISIONS_LOG): dropped the planned "not interested"→`blocked`
+  mapping (nothing reads `outcomes.blocked`; conflating it with the
+  `user_blocks` safety table is dishonest) in favour of a positive
+  `friend_request_sent` signal + a client-only Dismiss.
+- **Verification**: ruff + py_compile + the synthetic eval run locally;
+  mypy/pytest/eslint/tsc/vitest/build run in CI (npm + PyPI blocked here).
+- Refreshed `docs/CLERK_SETUP.md` §6 (profile auto-creation now exists;
+  noted the DC-seed-corpus geolocation/radius caveat).
 
 ### 2026-05-29 — PR A: real-user demo loop (branch `claude/nifty-lamport-12eR7`)
 

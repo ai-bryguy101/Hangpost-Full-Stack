@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, checkApiHealth, createProfile, postUserLocation } from "./api";
+import {
+  ApiError,
+  checkApiHealth,
+  createProfile,
+  postOutcome,
+  postUserLocation,
+} from "./api";
 
 describe("checkApiHealth", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -98,6 +104,22 @@ describe("createProfile", () => {
     expect(String(url)).toContain("/profiles");
     expect(init.method).toBe("POST");
     expect(init.headers.Authorization).toBe("Bearer tok");
+  });
+
+  it("posts an outcome action to the impression's outcomes endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await postOutcome("imp-123", "friend_request_sent", "tok");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/recommendations/imp-123/outcomes");
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer tok");
+    expect(JSON.parse(init.body)).toEqual({ action: "friend_request_sent" });
   });
 
   it("surfaces a 409 as an ApiError so callers can redirect", async () => {
