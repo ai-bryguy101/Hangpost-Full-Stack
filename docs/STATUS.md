@@ -5,8 +5,8 @@
 > at the **end** of every session in the same commit as the work.
 
 Last updated: **2026-05-29**
-Active branch: `claude/gifted-dirac-bjTLc` (post-PR-#5; assessment-only session, no code change)
-Current phase: **Phase 1 ✅ complete — verified end-to-end on docker-compose**
+Active branch: `claude/nifty-lamport-12eR7` (PR A — real-user demo loop)
+Current phase: **Phase 1 ✅ complete + real-user onboarding loop shipped**
 Resume framing (CLAUDE.md §10): every next PR must strengthen the
 "I shipped a recommender, evaluated it, and closed the loop on real
 outcomes" pitch. If a change doesn't, postpone it.
@@ -39,14 +39,17 @@ outcomes" pitch. If a change doesn't, postpone it.
   - `GET /health`, `GET /health/ready`
   - `GET /me` (Clerk JWT required)
   - `POST /profiles`, `GET /profiles/me`, `PATCH /profiles/me` (Clerk JWT required; embed-on-write)
-  - `GET /recommendations` (Clerk JWT or `?source_user_id=…` query param) — `ST_DWithin` pre-filter → load mutual-friend sets → engine `rank_candidates_with_cold_start` → log `recommendation_impressions` → return ranked list with full `MatchBreakdown`.
+  - `POST /user-locations` (Clerk JWT required) — upserts the caller's `user_locations` row from a browser `navigator.geolocation` fix (EWKT `SRID=4326;POINT(lon lat)`, same format as the seed path). Lives in the `profiles` package (`profiles/locations.py`) since that package owns the table.
+  - `GET /recommendations` (**Clerk JWT only** — the `source_user_id` query-param fallback was retired) — `ST_DWithin` pre-filter → load mutual-friend sets → engine `rank_candidates_with_cold_start` → log `recommendation_impressions` → return ranked list with full `MatchBreakdown`.
 - Schema: 2 Alembic revisions applied (`0001_initial_schema`, `0002_age_floor_18`). Profile age constraint is 18–120.
 
 **Web (`apps/web`)**
 
 - Homepage with API health status + link to `/demo`.
-- `/demo` server-rendered page rendering top-N recommendations with display name, handle, score, tier label, and component-score chips.
-- Clerk wired: `clerkMiddleware()`, `<ClerkProvider>`, `SignInButton` / `SignUpButton` / `UserButton` in the header. No pages auth-gated yet.
+- `/profile/new` client form (display name, handle, age, hometown, college, interests, liked_topics) with a **"Use my current location"** button that calls `navigator.geolocation` → `POST /user-locations`. Submit is gated on location being set (so landing on `/demo` can't 409), POSTs `/profiles`, then redirects to `/demo`. A 409 (profile already exists) redirects to `/demo` instead of erroring.
+- `/demo` server-rendered page rendering top-N recommendations (**Clerk-JWT-only** now). A signed-in user with no profile (404) or no location (409) gets an onboarding CTA to `/profile/new` instead of a raw error.
+- Clerk wired: `clerkMiddleware()`, `<ClerkProvider>`, `SignInButton` / `SignUpButton` / `UserButton`. **Sign-up redirects to `/profile/new`** (`signUpForceRedirectUrl`).
+- `lib/api.ts` now has a shared typed `apiFetch` seam + `ApiError` (carries the HTTP status so callers can branch on 404/409); `createProfile` / `postUserLocation` helpers route through it.
 
 **Infra**
 
@@ -59,9 +62,7 @@ outcomes" pitch. If a change doesn't, postpone it.
 
 | What | Why | Unblocks |
 |---|---|---|
-| **No profile-create UI.** After Clerk sign-up the user has a `users` row but no `profiles` row, so `/me` works but `/recommendations` 404s. The seed-corpus path (`/demo?source_user_id=…`) is the demoable surface. | Form needs handle picker, interests/likes chips, and a "use my current location" button — meaningful UI work. | A real signed-in user seeing themselves ranked. |
-| **No `POST /user-locations` endpoint.** No way for a Clerk user to set a location, so the radius pre-filter has nothing to filter against. | One-line endpoint, but blocked on the geolocation UI conversation. | Same as above. |
-| **`/recommendations` keeps the `source_user_id` query param.** | Drops once a real signed-in user can be the source. Transitional. | Removable after the two items above. |
+| **Real-user demo loop not yet verified against live Clerk.** PR A shipped the code (`/profile/new` form, `POST /user-locations`, JWT-only `/recommendations`, sign-up redirect) but it has only been exercised by unit/smoke tests + CI — the end-to-end click-through needs the Clerk Codespaces secrets set (see "External inputs needed"). | Operator action: set the three Clerk secrets, then walk sign-up → `/profile/new` → `/demo`. | A recruiter clicking through the live demo. |
 | **Embed-on-write is inline.** ~50 ms warm, ~2 s cold on first request. Acceptable for one-user dev. | Move to Arq when traffic appears. | Phase 6 hardening. |
 | **Email-collision on Clerk upsert = first-write-wins.** Second sub with same email → 500. | Fine for synthetic users. | Before public launch. |
 | **No outcome capture.** `recommendation_outcomes` table exists but no endpoints / UI write to it. | Needs the matching UI of Phase 3 to surface "viewed / friended / blocked" actions. | Phase 3 + 7. |
@@ -74,17 +75,20 @@ outcomes" pitch. If a change doesn't, postpone it.
 Three small PRs queued, in resume-impact order. Each is one session,
 each is demoable on its own, none blocks Phase 2.
 
-### PR A — Real-user demo loop (the 1.5 follow-on)
+### PR A — Real-user demo loop ✅ DONE (branch `claude/nifty-lamport-12eR7`)
 **Goal:** a recruiter can sign up and watch themselves get ranked
 against the 1,000 synthetic Washingtonians in 30 seconds.
-- `POST /user-locations` endpoint (takes browser `navigator.geolocation`
-  output, writes to `user_locations`).
-- `/profile/new` form on the web (display name, handle, age, hometown,
-  college, interests, liked_topics, "use my current location").
-- After Clerk sign-up, redirect new users to `/profile/new`, then to
-  `/demo` (no `?source_user_id=…` query param needed once a real user
-  can be the source).
-- Drop the optional-auth fallback on `/recommendations`.
+- ✅ `POST /user-locations` endpoint (browser `navigator.geolocation`
+  output → `user_locations`; in `profiles/locations.py`).
+- ✅ `/profile/new` form (display name, handle, age, hometown, college,
+  interests, liked_topics, "use my current location"). Location is
+  required before submit so `/demo` can't 409.
+- ✅ Sign-up redirects to `/profile/new` (`signUpForceRedirectUrl`),
+  then `/demo` after profile creation.
+- ✅ Dropped the `source_user_id` optional-auth fallback — `/recommendations`
+  is Clerk-JWT-only. `/demo` is sign-in-gated.
+- Remaining: live-Clerk click-through verification (needs the Codespaces
+  secrets). Next up is **PR B**.
 
 ### PR B — Close the ML loop (Phase 3 + 7 seam, pulled forward)
 **Goal:** the system not only *recommends* but also *measures whether
@@ -142,6 +146,28 @@ and all make the resume pitch stronger today.
 ---
 
 ## Session log
+
+### 2026-05-29 — PR A: real-user demo loop (branch `claude/nifty-lamport-12eR7`)
+
+- Confirmed the replan still holds (no work started on PRs A/B/C, no open
+  PRs, trees clean) before starting.
+- **API**: new `POST /user-locations` (upsert, Clerk-auth, EWKT geom
+  mirroring `seed.py`) in `profiles/locations.py`; `GET /recommendations`
+  made Clerk-JWT-only (dropped the `source_user_id` query param + the
+  400 branch); auth smoke tests updated (recommendations now 401 without
+  a token; added a no-token test for `/user-locations`).
+- **Web**: `/profile/new` client form + "use my current location" button;
+  sign-up redirects to it (`signUpForceRedirectUrl`); `/demo` is now
+  JWT-only and shows an onboarding CTA on 404/409; `lib/api.ts` gained a
+  shared `apiFetch`/`ApiError` seam reused by `createProfile` /
+  `postUserLocation`; vitest added for the new helpers.
+- **Decision applied** (DECISIONS_LOG): require a location before the
+  profile-form submit so a fresh user never lands on a 409'd `/demo`;
+  fold the location endpoint into the `profiles` package rather than a
+  new top-level package.
+- **Verification note**: this remote environment's network policy blocks
+  npm + PyPI, so only `ruff` + `py_compile` ran locally (both pass). The
+  web gates (tsc/eslint/vitest) and `pytest` run in CI on push.
 
 ### 2026-05-29 — Post-Phase-1 assessment + resume-lens replan (no code)
 

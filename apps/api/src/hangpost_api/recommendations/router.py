@@ -13,8 +13,10 @@ Pipeline (CLAUDE.md §2, §5):
 6. Log one ``recommendation_impressions`` row per returned candidate
    with the full ``MatchBreakdown`` for the ML loop.
 
-No Clerk auth here yet — Phase 1.4 will replace the ``source_user_id``
-query param with the JWT subject (CLAUDE.md §6 / STATUS.md).
+Clerk-auth-only: the source user is always the JWT subject. The old
+``source_user_id`` query-param fallback (a Phase-1 bridge for demoing
+against the synthetic corpus before real users existed) was retired
+once the web sign-up → profile-create flow landed (see DECISIONS_LOG).
 """
 
 from __future__ import annotations
@@ -29,7 +31,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from hangpost_api.auth.dependencies import get_current_user_optional
+from hangpost_api.auth.dependencies import get_current_user
 from hangpost_api.auth.models import User
 from hangpost_api.core.config import get_settings
 from hangpost_api.core.db import get_session
@@ -107,17 +109,7 @@ async def _accepted_friend_ids(
 @router.get("", summary="Ranked friend candidates near the source user")
 async def get_recommendations(
     session: Annotated[AsyncSession, Depends(get_session)],
-    current_user: Annotated[User | None, Depends(get_current_user_optional)],
-    source_user_id: Annotated[
-        uuid.UUID | None,
-        Query(
-            description=(
-                "UUID of the viewer. Optional when a Clerk JWT is sent — the "
-                "authenticated user's id is used in that case. Required "
-                "otherwise (synthetic-corpus demo path)."
-            ),
-        ),
-    ] = None,
+    current_user: Annotated[User, Depends(get_current_user)],
     radius_m: Annotated[
         int,
         Query(
@@ -155,16 +147,9 @@ async def get_recommendations(
             detail="Matching engine is not installed in this image.",
         )
 
-    # JWT wins when present; the query param is a transitional fallback
-    # for demoing against the synthetic seed corpus, where users have no
-    # Clerk identity yet.
-    if current_user is not None:
-        source_user_id = current_user.id
-    elif source_user_id is None:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail="source_user_id is required when no bearer token is sent.",
-        )
+    # The source is always the authenticated user — get_current_user 401s
+    # before we get here if no valid Clerk JWT was sent.
+    source_user_id = current_user.id
 
     source_profile = (
         await session.execute(select(Profile).where(Profile.user_id == source_user_id))

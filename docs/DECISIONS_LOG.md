@@ -10,6 +10,39 @@
 
 ---
 
+## 2026-05-29 — PR A call: location endpoint lives in `profiles`, not its own package
+
+`POST /user-locations` went into `apps/api/.../profiles/locations.py` (a
+small router with its own `/user-locations` prefix), not a new top-level
+`locations/` package. The `profiles` package already declares ownership
+of the `user_locations` table (`profiles/__init__.py`), and a whole
+package for one endpoint is premature. The flat `/user-locations` public
+path is preserved by giving the router its own prefix rather than nesting
+under `/profiles`. Extract a `locations` package only if location history
+/ delete / sharing-settings endpoints arrive later.
+
+## 2026-05-29 — Require a location before the `/profile/new` submit
+
+`GET /recommendations` 404s with no profile and 409s with no location.
+The onboarding form therefore disables its submit button until "Use my
+current location" has succeeded, and creates the location row before the
+profile row — so a brand-new user can never land on a `/demo` that
+immediately 409s. Belt-and-suspenders: `/demo` also catches 404/409 and
+shows an onboarding CTA instead of a raw error. The comma-separated
+interests/likes inputs are deliberately minimal (the `/demo` surface is
+throwaway scaffolding per the 2026-05-28 entry); the chip picker lands
+with the Phase 2 designs.
+
+## 2026-05-29 — Retire the `source_user_id` fallback on `/recommendations`
+
+The transitional crutch logged on 2026-05-28 ("Optional auth on
+`/recommendations` is a transitional crutch") is now removed:
+`/recommendations` is Clerk-JWT-only. The web sign-up → `/profile/new` →
+`/demo` flow means a real signed-in user can be the source, so the
+synthetic-corpus query-param path is no longer needed. The seed corpus
+is still the *ranking target* (the 1,000 nearby candidates) — we just no
+longer impersonate a seed user as the *viewer*.
+
 ## 2026-05-29 — Pull ML-loop-closure forward from Phase 7 into "PR B"
 
 CLAUDE.md §6 puts outcome capture in Phase 3 (UI hooks) and the

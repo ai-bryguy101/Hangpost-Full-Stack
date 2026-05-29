@@ -13,6 +13,47 @@ const API_URL =
     ? process.env.API_INTERNAL_URL ?? BROWSER_API_URL
     : BROWSER_API_URL;
 
+/** Thrown by {@link apiFetch} on a non-2xx response; carries the status
+ * so callers can branch (e.g. a 409 "profile exists" → redirect). */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+interface ApiFetchOptions {
+  method?: "GET" | "POST" | "PATCH";
+  body?: unknown;
+  /** Clerk JWT; sent as a bearer token when present. */
+  bearerToken?: string;
+  query?: Record<string, string>;
+}
+
+/** Single fetch seam for the API: attaches the bearer token, serializes
+ * JSON, and turns non-2xx responses into a typed {@link ApiError}. */
+async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (opts.bearerToken) headers.Authorization = `Bearer ${opts.bearerToken}`;
+  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+
+  const qs = opts.query ? `?${new URLSearchParams(opts.query).toString()}` : "";
+  const res = await fetch(`${API_URL}${path}${qs}`, {
+    method: opts.method ?? "GET",
+    cache: "no-store",
+    headers,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new ApiError(res.status, detail || res.statusText);
+  }
+  return (await res.json()) as T;
+}
+
 export interface ApiHealth {
   ok: boolean;
   version: string | null;
@@ -62,32 +103,75 @@ export interface RecommendationsResponse {
 }
 
 export interface FetchRecommendationsOptions {
-  sourceUserId?: string;
   radiusM?: number;
   limit?: number;
-  /** Optional Clerk JWT — when set, the API derives the source from the token. */
-  bearerToken?: string;
+  /** Clerk JWT. The API derives the source user from it — recommendations
+   * are Clerk-auth-only, so this is required. */
+  bearerToken: string;
 }
 
-/** Either `sourceUserId` or `bearerToken` (or both) must be provided. */
 export async function fetchRecommendations(
   opts: FetchRecommendationsOptions,
 ): Promise<RecommendationsResponse> {
-  const params = new URLSearchParams();
-  if (opts.sourceUserId) params.set("source_user_id", opts.sourceUserId);
-  if (opts.radiusM !== undefined) params.set("radius_m", String(opts.radiusM));
-  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
-
-  const headers: Record<string, string> = {};
-  if (opts.bearerToken) headers.Authorization = `Bearer ${opts.bearerToken}`;
-
-  const res = await fetch(`${API_URL}/recommendations?${params.toString()}`, {
-    cache: "no-store",
-    headers,
+  const query: Record<string, string> = {};
+  if (opts.radiusM !== undefined) query.radius_m = String(opts.radiusM);
+  if (opts.limit !== undefined) query.limit = String(opts.limit);
+  return apiFetch<RecommendationsResponse>("/recommendations", {
+    bearerToken: opts.bearerToken,
+    query,
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`recommendations ${res.status}: ${body || res.statusText}`);
-  }
-  return (await res.json()) as RecommendationsResponse;
+}
+
+/** Fields a user supplies to create their profile. Mirrors the API's
+ * `ProfileCreate` schema; the server is the source of truth for
+ * validation (handle regex, age 18-120, list dedupe). */
+export interface ProfileInput {
+  display_name: string;
+  handle: string;
+  age: number | null;
+  hometown: string | null;
+  college: string | null;
+  interests: string[];
+  liked_topics: string[];
+}
+
+export interface ProfileResponse {
+  user_id: string;
+  display_name: string;
+  handle: string;
+}
+
+export async function createProfile(
+  input: ProfileInput,
+  bearerToken: string,
+): Promise<ProfileResponse> {
+  return apiFetch<ProfileResponse>("/profiles", {
+    method: "POST",
+    body: input,
+    bearerToken,
+  });
+}
+
+export interface LocationInput {
+  latitude: number;
+  longitude: number;
+  accuracy_m: number | null;
+}
+
+export interface LocationResponse {
+  latitude: number;
+  longitude: number;
+  accuracy_m: number | null;
+  updated_at: string;
+}
+
+export async function postUserLocation(
+  input: LocationInput,
+  bearerToken: string,
+): Promise<LocationResponse> {
+  return apiFetch<LocationResponse>("/user-locations", {
+    method: "POST",
+    body: input,
+    bearerToken,
+  });
 }
