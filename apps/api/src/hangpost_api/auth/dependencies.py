@@ -68,7 +68,7 @@ def _verify_token(token: str) -> dict[str, Any]:
     """
     try:
         signing_key = _get_jwks_client().get_signing_key_from_jwt(token).key
-        return jwt.decode(  # type: ignore[no-any-return]
+        return jwt.decode(
             token,
             signing_key,
             algorithms=["RS256"],

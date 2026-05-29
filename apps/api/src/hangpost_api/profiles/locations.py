@@ -48,16 +48,16 @@ async def upsert_my_location(
     ``updated_at`` (hence 200, not 201). PostGIS ``POINT`` takes
     ``(longitude latitude)`` order, the reverse of how humans say it.
     """
-    stmt = insert(UserLocation).values(
+    base = insert(UserLocation).values(
         user_id=current_user.id,
         geom=f"SRID=4326;POINT({payload.longitude} {payload.latitude})",
         accuracy_m=payload.accuracy_m,
     )
-    stmt = stmt.on_conflict_do_update(
+    stmt = base.on_conflict_do_update(
         index_elements=[UserLocation.user_id],
         set_={
-            "geom": stmt.excluded.geom,
-            "accuracy_m": stmt.excluded.accuracy_m,
+            "geom": base.excluded.geom,
+            "accuracy_m": base.excluded.accuracy_m,
             "updated_at": func.now(),
         },
     ).returning(UserLocation.updated_at)

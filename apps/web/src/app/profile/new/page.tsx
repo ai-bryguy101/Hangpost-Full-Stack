@@ -61,7 +61,7 @@ export default function ProfileNewPage() {
           You need to be signed in to create a profile.
         </p>
         <div className="mt-4">
-          <SignUpButton mode="modal" signUpForceRedirectUrl="/profile/new">
+          <SignUpButton mode="modal" forceRedirectUrl="/profile/new">
             <button className="rounded bg-foreground px-3 py-1 text-sm text-background">
               Sign up
             </button>

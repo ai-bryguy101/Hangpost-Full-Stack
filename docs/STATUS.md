@@ -48,7 +48,7 @@ outcomes" pitch. If a change doesn't, postpone it.
 - Homepage with API health status + link to `/demo`.
 - `/profile/new` client form (display name, handle, age, hometown, college, interests, liked_topics) with a **"Use my current location"** button that calls `navigator.geolocation` → `POST /user-locations`. Submit is gated on location being set (so landing on `/demo` can't 409), POSTs `/profiles`, then redirects to `/demo`. A 409 (profile already exists) redirects to `/demo` instead of erroring.
 - `/demo` server-rendered page rendering top-N recommendations (**Clerk-JWT-only** now). A signed-in user with no profile (404) or no location (409) gets an onboarding CTA to `/profile/new` instead of a raw error.
-- Clerk wired: `clerkMiddleware()`, `<ClerkProvider>`, `SignInButton` / `SignUpButton` / `UserButton`. **Sign-up redirects to `/profile/new`** (`signUpForceRedirectUrl`).
+- Clerk wired: `clerkMiddleware()`, `<ClerkProvider>`, `SignInButton` / `SignUpButton` / `UserButton`. **Sign-up redirects to `/profile/new`** (`forceRedirectUrl`).
 - `lib/api.ts` now has a shared typed `apiFetch` seam + `ApiError` (carries the HTTP status so callers can branch on 404/409); `createProfile` / `postUserLocation` helpers route through it.
 
 **Infra**
@@ -83,7 +83,7 @@ against the 1,000 synthetic Washingtonians in 30 seconds.
 - ✅ `/profile/new` form (display name, handle, age, hometown, college,
   interests, liked_topics, "use my current location"). Location is
   required before submit so `/demo` can't 409.
-- ✅ Sign-up redirects to `/profile/new` (`signUpForceRedirectUrl`),
+- ✅ Sign-up redirects to `/profile/new` (`forceRedirectUrl`),
   then `/demo` after profile creation.
 - ✅ Dropped the `source_user_id` optional-auth fallback — `/recommendations`
   is Clerk-JWT-only. `/demo` is sign-in-gated.
@@ -157,7 +157,7 @@ and all make the resume pitch stronger today.
   400 branch); auth smoke tests updated (recommendations now 401 without
   a token; added a no-token test for `/user-locations`).
 - **Web**: `/profile/new` client form + "use my current location" button;
-  sign-up redirects to it (`signUpForceRedirectUrl`); `/demo` is now
+  sign-up redirects to it (`forceRedirectUrl`); `/demo` is now
   JWT-only and shows an onboarding CTA on 404/409; `lib/api.ts` gained a
   shared `apiFetch`/`ApiError` seam reused by `createProfile` /
   `postUserLocation`; vitest added for the new helpers.
