@@ -24,9 +24,10 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from dataclasses import asdict
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,7 +40,15 @@ from hangpost_api.core.enums import FriendshipState
 from hangpost_api.matching.engine import is_available as matching_available
 from hangpost_api.matching.engine import rank as matching_rank
 from hangpost_api.profiles.models import Profile, UserLocation
-from hangpost_api.recommendations.models import RecommendationImpression
+from hangpost_api.recommendations.models import (
+    RecommendationImpression,
+    RecommendationOutcome,
+)
+from hangpost_api.recommendations.schemas import (
+    OutcomeAction,
+    OutcomeCreate,
+    OutcomeRead,
+)
 from hangpost_api.safety.models import UserBlock
 from hangpost_api.social.models import Friendship
 
@@ -104,6 +113,39 @@ async def _accepted_friend_ids(
         if a in targets:
             out[a].add(r)
     return out
+
+
+def _feature_snapshot(
+    source: Profile,
+    candidate: Profile,
+    source_mutuals: set[str],
+    candidate_mutuals: set[str],
+    candidate_pool_size: int,
+    radius_m: int,
+) -> dict[str, Any]:
+    """Raw ranker inputs for one source→candidate pair at impression time.
+
+    Logged into ``recommendation_impressions.features_json`` so the
+    offline trainer can reconstruct the feature vector the ranker scored,
+    even after profiles or the friend graph drift (DECISIONS_LOG
+    2026-05-29). This is the ranker's *input*; ``breakdown_json`` is its
+    output.
+    """
+    source_interests = set(source.interests or [])
+    source_liked = set(source.liked_topics or [])
+    return {
+        "candidate_pool_size": candidate_pool_size,
+        "radius_m": radius_m,
+        "has_source_embedding": source.embedding is not None,
+        "has_candidate_embedding": candidate.embedding is not None,
+        "mutual_friend_count": len(source_mutuals & candidate_mutuals),
+        "interest_overlap_count": len(source_interests & set(candidate.interests or [])),
+        "liked_topic_overlap_count": len(
+            source_liked & set(candidate.liked_topics or [])
+        ),
+        "hometown_match": bool(source.hometown and source.hometown == candidate.hometown),
+        "college_match": bool(source.college and source.college == candidate.college),
+    }
 
 
 @router.get("", summary="Ranked friend candidates near the source user")
@@ -238,14 +280,33 @@ async def get_recommendations(
     # to each ranked engine profile without re-querying.
     rows_by_id = {str(row.user_id): row for row in candidate_rows}
     model_version = get_settings().model_version
+    pool_size = len(candidate_ids)
+    # One timestamp for the whole batch so the offline evaluator can group
+    # these impressions back into a single "query" by (source, surfaced_at).
+    # (func.now() would also be statement-uniform, but pinning it in Python
+    # keeps the grouping key explicit and driver-independent.)
+    surfaced_at = datetime.now(UTC)
 
     results: list[dict[str, Any]] = []
     impression_values: list[dict[str, Any]] = []
     for position, (engine_profile, breakdown) in enumerate(ranked, start=1):
         row = rows_by_id[engine_profile.user_id]
         breakdown_dict = asdict(breakdown)
+        # Generate the id here so it can be returned to the client (needed to
+        # POST outcomes) and used verbatim as the impression PK — no fragile
+        # reliance on bulk-insert RETURNING ordering.
+        impression_id = uuid.uuid4()
+        features = _feature_snapshot(
+            source_profile,
+            row,
+            source_mutuals,
+            friends.get(str(row.user_id), set()),
+            pool_size,
+            radius_m,
+        )
         results.append(
             {
+                "impression_id": str(impression_id),
                 "user_id": str(row.user_id),
                 "display_name": row.display_name,
                 "handle": row.handle,
@@ -256,12 +317,15 @@ async def get_recommendations(
         )
         impression_values.append(
             {
+                "id": impression_id,
                 "source_user_id": source_user_id,
                 "candidate_id": row.user_id,
+                "surfaced_at": surfaced_at,
                 "rank_position": position,
                 "score": breakdown.total_score,
                 "model_version": model_version,
                 "breakdown_json": breakdown_dict,
+                "features_json": features,
             }
         )
 
@@ -278,3 +342,51 @@ async def get_recommendations(
         "model_version": model_version,
         "results": results,
     }
+
+
+@router.post(
+    "/{impression_id}/outcomes",
+    response_model=OutcomeRead,
+    summary="Record a user action on a surfaced recommendation",
+)
+async def record_outcome(
+    impression_id: Annotated[uuid.UUID, Path()],
+    payload: OutcomeCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> RecommendationOutcome:
+    """Upsert the outcome row for one impression — the ML training label.
+
+    Idempotent and additive: each call sets one action's column, so a
+    view → profile-open → friend-request sequence accumulates onto a
+    single row (PK = impression_id). ``viewed`` writes the timestamp
+    ``viewed_at``; the other actions flip their boolean flag. The
+    impression must belong to the calling user (404 otherwise) so a user
+    can't forge labels against someone else's recommendations.
+    """
+    owns_impression = (
+        await session.execute(
+            select(RecommendationImpression.id).where(
+                RecommendationImpression.id == impression_id,
+                RecommendationImpression.source_user_id == current_user.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if owns_impression is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail="Impression not found for the current user.",
+        )
+
+    # "viewed" is the only timestamp column; the rest are booleans.
+    column = "viewed_at" if payload.action is OutcomeAction.VIEWED else payload.action.value
+    new_value: Any = func.now() if payload.action is OutcomeAction.VIEWED else True
+
+    base = insert(RecommendationOutcome).values(impression_id=impression_id, **{column: new_value})
+    stmt = base.on_conflict_do_update(
+        index_elements=[RecommendationOutcome.impression_id],
+        set_={column: new_value, "updated_at": func.now()},
+    ).returning(RecommendationOutcome)
+    outcome = (await session.execute(stmt)).scalar_one()
+    await session.commit()
+    return outcome

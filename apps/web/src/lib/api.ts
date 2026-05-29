@@ -87,6 +87,8 @@ export interface MatchBreakdown {
 }
 
 export interface RecommendationResult {
+  /** The recommendation_impressions row id — POST outcomes against it. */
+  impression_id: string;
   user_id: string;
   display_name: string;
   handle: string;
@@ -172,6 +174,29 @@ export async function postUserLocation(
   return apiFetch<LocationResponse>("/user-locations", {
     method: "POST",
     body: input,
+    bearerToken,
+  });
+}
+
+/** Actions a viewer can take on a surfaced recommendation. Mirrors the
+ * API's `OutcomeAction`; these become the ML loop's training labels. */
+export type OutcomeAction =
+  | "viewed"
+  | "profile_opened"
+  | "friend_request_sent"
+  | "blocked"
+  | "hangout_rsvped";
+
+/** Record one outcome for an impression. The endpoint is idempotent and
+ * additive, so callers can fire-and-forget. */
+export async function postOutcome(
+  impressionId: string,
+  action: OutcomeAction,
+  bearerToken: string,
+): Promise<void> {
+  await apiFetch<unknown>(`/recommendations/${impressionId}/outcomes`, {
+    method: "POST",
+    body: { action },
     bearerToken,
   });
 }
