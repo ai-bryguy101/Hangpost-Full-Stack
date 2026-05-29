@@ -10,6 +10,52 @@
 
 ---
 
+## 2026-05-29 — Pull ML-loop-closure forward from Phase 7 into "PR B"
+
+CLAUDE.md §6 puts outcome capture in Phase 3 (UI hooks) and the
+retraining job in Phase 7. The full retrain stays in Phase 7, but the
+**outcome-capture endpoint + offline evaluation harness** move forward
+into the next queued PR (PR B in STATUS.md).
+
+Why: CLAUDE.md §10 says every PR should make the resume pitch
+stronger. Today the system logs *what it recommended* but never
+records *whether the recommendation was good*. Without outcomes there
+is literally no ML loop to demonstrate. A recruiter reading the repo
+sees an embedding-powered ranker but no evaluation story. Even a thin
+outcome write + a single NDCG-vs-baseline report committed to
+`docs/eval/` flips that.
+
+Cost: small. Tables exist (`recommendation_outcomes`), the impression
+seam is already in `recommendations/router.py`. New surface area is
+one POST endpoint, three click handlers on `/demo`, and a `scripts/
+evaluate.py`.
+
+This is a sequencing change, not an architectural change — the
+destination in CLAUDE.md §6 is unchanged.
+
+---
+
+## 2026-05-29 — Log a feature snapshot alongside every impression
+
+Decision: when `/recommendations` writes a `recommendation_impressions`
+row, it should also persist the *raw inputs* the ranker saw
+(embedding hash, mutual-friend count, hometown-match bool,
+college-match bool, interest-overlap count, candidate count after the
+PostGIS pre-filter), not just the `breakdown_json` output.
+
+Why: when Phase 7's `LearnedRanker.fit()` retrains on past queries, it
+needs to reconstruct the feature vector that was actually scored, not
+just the score. Embeddings drift (profile edits), friend graphs drift
+(new accepted friendships), so reading them at retrain time gives
+different inputs than the ranker saw at recommend time. Logging the
+snapshot at impression time eliminates the silent feature-skew bug
+that bites every team that skips this.
+
+Doesn't need a new table — extend `breakdown_json` (it's JSONB) or add
+a sibling `features_json` column. Decide in the PR.
+
+---
+
 ## 2026-05-28 — Age floor is 18, not 13
 
 Hangpost is positioned as a young-adult product (target ~23; seed

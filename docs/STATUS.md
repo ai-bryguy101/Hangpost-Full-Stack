@@ -4,9 +4,12 @@
 > are*. `CLAUDE.md` tracks *what we decided*. ADRs track *why*. Updated
 > at the **end** of every session in the same commit as the work.
 
-Last updated: **2026-05-28**
-Active branch: `claude/hopeful-volta-ZOBFt` (open as PR #5 → `main`)
+Last updated: **2026-05-29**
+Active branch: `claude/gifted-dirac-bjTLc` (post-PR-#5; assessment-only session, no code change)
 Current phase: **Phase 1 ✅ complete — verified end-to-end on docker-compose**
+Resume framing (CLAUDE.md §10): every next PR must strengthen the
+"I shipped a recommender, evaluated it, and closed the loop on real
+outcomes" pitch. If a change doesn't, postpone it.
 
 ---
 
@@ -68,12 +71,59 @@ Current phase: **Phase 1 ✅ complete — verified end-to-end on docker-compose*
 
 ## Next session — concrete picks
 
-Choose one. Both are useful, neither blocks Phase 2.
+Three small PRs queued, in resume-impact order. Each is one session,
+each is demoable on its own, none blocks Phase 2.
 
-1. **Finish the real-user loop (1.5 follow-on).** Build the profile-setup flow: `POST /user-locations` endpoint, `/profile/new` form on the web app, redirect from sign-up → profile setup → `/demo`. Net result: sign up with Clerk, fill out 8 fields, watch yourself get ranked against the 1,000.
-2. **Start Phase 2 prep without UI.** Add geolocation helpers (`POST /user-locations` from a browser-side `navigator.geolocation` call), document the PWA manifest, sketch the posterboard data flow. Frontend lands when designs do.
+### PR A — Real-user demo loop (the 1.5 follow-on)
+**Goal:** a recruiter can sign up and watch themselves get ranked
+against the 1,000 synthetic Washingtonians in 30 seconds.
+- `POST /user-locations` endpoint (takes browser `navigator.geolocation`
+  output, writes to `user_locations`).
+- `/profile/new` form on the web (display name, handle, age, hometown,
+  college, interests, liked_topics, "use my current location").
+- After Clerk sign-up, redirect new users to `/profile/new`, then to
+  `/demo` (no `?source_user_id=…` query param needed once a real user
+  can be the source).
+- Drop the optional-auth fallback on `/recommendations`.
 
-(Pick 1 if the goal is "demoable today end-to-end". Pick 2 if you want momentum on Phase 2 while waiting on Figma.)
+### PR B — Close the ML loop (Phase 3 + 7 seam, pulled forward)
+**Goal:** the system not only *recommends* but also *measures whether
+the recommendation was good*. This is the headline AI-engineering
+story; bringing even a thin version forward now strengthens every
+recruiter conversation.
+- Endpoint: `POST /recommendations/{impression_id}/outcomes`
+  (action ∈ {viewed, profile_opened, friend_request_sent, blocked,
+  hangout_rsvped}). Table already exists (`recommendation_outcomes`),
+  nothing writes to it today.
+- Three click handlers on the `/demo` cards that POST outcomes
+  (mark-viewed on view, profile-open on click, "not interested" on
+  dismiss).
+- `apps/api/scripts/evaluate.py`: pull last N days of
+  impressions+outcomes, compute NDCG@10 + Recall@10 for the current
+  ranker vs. a random baseline and a popularity-only baseline, write a
+  markdown report to `docs/eval/`. Even one report committed beats no
+  measurement story.
+- Feature snapshot: also log the raw inputs into the ranker on each
+  impression (embedding hash, mutual-friend count, hometown bool, etc.)
+  so the offline trainer can replay history when Phase 7 lands.
+
+### PR C — Observable and presentable
+**Goal:** the repo *reads* as well as it *runs*. Smallest PR but the
+one a recruiter sees first.
+- Wire Sentry on browser + API (5-minute job).
+- Structured log line per ranker call: `model_version`, latency,
+  candidate count.
+- Rewrite the README to lead with: one `/demo` screenshot, one
+  paragraph on the ML pitch, then the technical detail.
+- Cut a tag on the sibling matching-engine repo and swap the SHA pin.
+- Fix the email-collision-on-Clerk-signup 500 (first-write-wins).
+- Add an integration test for `/recommendations` (boot a tiny seed
+  corpus, assert sorted result + valid `MatchBreakdown` shape).
+- Add `docs/PRIVACY.md` covering `user_locations` retention.
+
+Phase 2 (posts + feed) stays correctly blocked on Figma designs
+(ADR-0005). The three PRs above all unblock independently of design
+and all make the resume pitch stronger today.
 
 ---
 
@@ -92,6 +142,25 @@ Choose one. Both are useful, neither blocks Phase 2.
 ---
 
 ## Session log
+
+### 2026-05-29 — Post-Phase-1 assessment + resume-lens replan (no code)
+
+- Re-read repo on `claude/gifted-dirac-bjTLc` after PR #5 merged. Phase 1
+  state confirmed as in §"What is deployed today"; nothing rotted.
+- Operator goal restated: this repo goes on a resume for an AI
+  engineer role. Re-ordered the next-steps queue (above) by
+  ML-narrative impact rather than by phase number, while keeping the
+  CLAUDE.md §6 destination unchanged.
+- Decision: bring the *outcome-capture half* of Phases 3 + 7 forward
+  into PR B, because the headline pitch in CLAUDE.md §10 (close the
+  ML loop on real outcomes) is the single biggest gap a recruiter
+  would notice today. The full retraining job stays in Phase 7.
+- Decision: keep Phase 2 (posts + feed) blocked on Figma per ADR-0005.
+  PRs A/B/C above all ship independently of design.
+- Improvements catalogued (offline eval harness, feature snapshots in
+  impressions, Sentry-first observability, sibling-repo tag swap,
+  README rewrite for recruiter audience, integration test for
+  `/recommendations`, `docs/PRIVACY.md` on location retention).
 
 ### 2026-05-28 — Phase 1 end-to-end (PR #5)
 
