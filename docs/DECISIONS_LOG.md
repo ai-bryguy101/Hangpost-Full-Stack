@@ -10,6 +10,20 @@
 
 ---
 
+## 2026-05-29 — CI Clerk placeholder key must decode to `…$`
+
+The CI `next build` (web job + Docker web image) prerenders
+`/_not-found` and other static pages, which initialize `<ClerkProvider>`
+and so require a publishable key whose format *parses*. The original
+placeholder `pk_test_Y2lhcmEtY2ktcGxhY2Vob2xkZXIkCg` base64-decodes to
+`ciara-ci-placeholder$\n` — the trailing newline means it does **not**
+end in `$`, so Clerk's parser rejected it and the build died. This had
+been failing every PR's web + Docker jobs (including the docs-only #6).
+Swapped to `pk_test_Y2xlcmsuZXhhbXBsZS5jb20k` (`clerk.example.com$`),
+which parses. It is never used for real auth — the real key comes from
+Codespaces/Vercel/Fly secrets at runtime. Rule: any dummy Clerk key must
+base64-decode to a host ending in exactly `$` (no trailing whitespace).
+
 ## 2026-05-29 — PR A call: location endpoint lives in `profiles`, not its own package
 
 `POST /user-locations` went into `apps/api/.../profiles/locations.py` (a
