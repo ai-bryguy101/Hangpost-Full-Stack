@@ -56,7 +56,7 @@ def relevance_from_outcome(
 
 def dcg(relevances: Sequence[int]) -> float:
     """Discounted cumulative gain with the standard 2**rel - 1 gain."""
-    return sum((2**rel - 1) / math.log2(i + 2) for i, rel in enumerate(relevances))
+    return sum((2.0**rel - 1.0) / math.log2(i + 2) for i, rel in enumerate(relevances))
 
 
 def ndcg_at_k(relevances_in_rank_order: Sequence[int], k: int = 10) -> float:
