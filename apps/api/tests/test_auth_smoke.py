@@ -30,12 +30,21 @@ def test_profiles_patch_me_requires_bearer_token() -> None:
     assert resp.status_code == 401
 
 
-def test_recommendations_without_token_or_query_param_is_400() -> None:
-    """No JWT and no source_user_id query param — the endpoint should 400."""
+def test_user_locations_post_requires_bearer_token() -> None:
+    resp = client.post(
+        "/user-locations",
+        json={"latitude": 38.9, "longitude": -77.0, "accuracy_m": 20},
+    )
+    assert resp.status_code == 401
+
+
+def test_recommendations_requires_bearer_token() -> None:
+    """No JWT — the endpoint is Clerk-auth-only now, so it must 401.
+
+    The source_user_id query-param fallback was retired; the auth
+    dependency rejects the request before the matching engine is ever
+    touched, so this is a 401 regardless of whether the engine is
+    installed in the image.
+    """
     resp = client.get("/recommendations")
-    # The recommendations endpoint also raises 503 if the matching engine
-    # isn't installed in this image. In CI the engine is installed from
-    # the SHA pin, so this is a 400. Accept both so the test stays useful
-    # in any environment where the engine import fails (e.g. an offline
-    # box) — we're only validating the auth/param wiring here.
-    assert resp.status_code in (400, 503)
+    assert resp.status_code == 401

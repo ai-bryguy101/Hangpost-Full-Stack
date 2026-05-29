@@ -124,3 +124,26 @@ class ProfileRead(BaseModel):
     embedding_at: datetime | None
     onboarded_at: datetime | None
     updated_at: datetime
+
+
+class LocationCreate(BaseModel):
+    """A GPS fix reported by the browser's ``navigator.geolocation``.
+
+    ``latitude``/``longitude`` use the WGS84 valid ranges; ``accuracy_m``
+    is the browser's reported accuracy radius in meters (optional). This
+    feeds the ``ST_DWithin`` radius pre-filter — distance is a hard
+    pre-filter, never a ranking signal (CLAUDE.md §2).
+    """
+
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy_m: int | None = Field(default=None, ge=0, le=100_000)
+
+
+class LocationRead(BaseModel):
+    """The stored location echoed back with the server write timestamp."""
+
+    latitude: float
+    longitude: float
+    accuracy_m: int | None
+    updated_at: datetime

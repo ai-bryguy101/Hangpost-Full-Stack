@@ -18,6 +18,7 @@ from hangpost_api import __version__
 from hangpost_api.auth.router import router as auth_router
 from hangpost_api.core.config import get_settings
 from hangpost_api.core.db import engine
+from hangpost_api.profiles.locations import router as user_locations_router
 from hangpost_api.profiles.router import router as profiles_router
 from hangpost_api.recommendations.router import router as recommendations_router
 
@@ -75,6 +76,7 @@ async def request_id_middleware(
 
 app.include_router(auth_router)
 app.include_router(profiles_router)
+app.include_router(user_locations_router)
 app.include_router(recommendations_router)
 
 

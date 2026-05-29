@@ -2,9 +2,9 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 
 // Default Clerk matcher: every route except Next internals and static
 // assets goes through Clerk so `auth()` is callable everywhere. Auth is
-// NOT enforced here — pages choose whether to gate themselves. Today
-// only `/sign-in`, `/sign-up`, and `/demo` exist; `/demo` accepts both
-// anonymous (?source_user_id=) and signed-in modes.
+// NOT enforced here — pages choose whether to gate themselves. `/demo`
+// and `/profile/new` both require a signed-in user and render their own
+// sign-in prompt when there isn't one.
 export default clerkMiddleware();
 
 export const config = {

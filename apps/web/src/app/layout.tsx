@@ -43,7 +43,7 @@ export default function RootLayout({
                     Sign in
                   </button>
                 </SignInButton>
-                <SignUpButton mode="modal">
+                <SignUpButton mode="modal" forceRedirectUrl="/profile/new">
                   <button className="rounded bg-foreground px-3 py-1 text-sm text-background">
                     Sign up
                   </button>

@@ -67,7 +67,7 @@ jobs:
         # secrets / Fly.io / Vercel — but Clerk will refuse to build without
         # something that parses as a key.
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2lhcmEtY2ktcGxhY2Vob2xkZXIkCg
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
         run: npm run build
 
   docker:
@@ -89,7 +89,7 @@ jobs:
           push: false
           # See the "web" job above for why a placeholder key is needed.
           build-args: |
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2lhcmEtY2ktcGxhY2Vob2xkZXIkCg
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
 
   # NOTE: dependency/container vulnerability scanning (Trivy) is part of
   # Phase 6 (observability + hardening), where it becomes a blocking gate
