@@ -10,6 +10,48 @@
 
 ---
 
+## 2026-05-30 — Add PR D: ML-engineer artifacts (model card, data card, notebook, fairness stub)
+
+Decision: queue a new "PR D" after PR C with four small ML-specific
+artifacts: `docs/MODEL_CARD.md`, `docs/DATA_CARD.md`,
+`docs/notebooks/eval.ipynb` (reproduces NDCG@10 from
+`scripts/evaluate.py`), `docs/PRODUCT_VISION.md` (port from sibling
+repo), and a fairness-parity stub in `evaluate.py` that groups
+impressions by hometown / age bucket.
+
+Why: every existing artifact in the repo demonstrates the *engineering*
+side of ML (logging, evaluation harness, baselines). What's still
+missing is the *responsible-AI* and *communication* side — exactly the
+artifacts a senior AI-engineer interviewer scans for: a model card
+that says "here's what it does, here's what it doesn't, here's how it
+could fail," a data card that admits the seed corpus is synthetic and
+biased, a notebook that re-runs the evaluation reproducibly. These are
+cheap to write (1–2 hours each) and they each remove a "junior energy"
+read from the repo.
+
+Sequencing: after PR C, not before — PR C's README rewrite is the
+front door, and these cards link from it.
+
+---
+
+## 2026-05-30 — Resume-impact tiering, not phase-order, is the prioritization key
+
+Restating an implicit rule out loud so it doesn't get re-litigated:
+work is sequenced by **resume impact for the AI-engineer audience**,
+not by CLAUDE.md §6 phase number. The §6 destinations don't change —
+this only affects ordering. The current ordering reflecting this rule
+is in STATUS.md "Next session — concrete picks". Phase 2 (posts + feed)
+stays explicitly deferred behind the ML-loop, observability, and
+ML-artifacts work because nothing in Phase 2 strengthens the
+recommender-system pitch.
+
+A useful test for new work: "does this make the §10 pitch ('I built a
+recommender, evaluated it, closed the loop on real outcomes') stronger
+or measurably more credible?" If yes, it jumps the queue. If no, it
+waits for Phase 2 onward.
+
+---
+
 ## 2026-05-29 — CI Clerk placeholder key must decode to `…$`
 
 The CI `next build` (web job + Docker web image) prerenders

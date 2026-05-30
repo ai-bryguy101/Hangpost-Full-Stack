@@ -4,9 +4,10 @@
 > are*. `CLAUDE.md` tracks *what we decided*. ADRs track *why*. Updated
 > at the **end** of every session in the same commit as the work.
 
-Last updated: **2026-05-29**
-Active branch: `claude/nifty-lamport-12eR7` (PR A — real-user demo loop)
-Current phase: **Phase 1 ✅ complete + real-user onboarding loop shipped**
+Last updated: **2026-05-30**
+Active branch: `claude/gifted-dirac-kE49j` (assessment session — no code, memory only)
+Open PR: **#8** (`claude/nifty-lamport-12eR7`) — **PR B: close the ML loop**, awaiting review/merge.
+Current phase: **Phase 1 ✅ complete + real-user onboarding loop shipped; PR B in flight**
 Resume framing (CLAUDE.md §10): every next PR must strengthen the
 "I shipped a recommender, evaluated it, and closed the loop on real
 outcomes" pitch. If a change doesn't, postpone it.
@@ -90,28 +91,38 @@ against the 1,000 synthetic Washingtonians in 30 seconds.
 - Remaining: live-Clerk click-through verification (needs the Codespaces
   secrets). Next up is **PR B**.
 
-### PR B — Close the ML loop (Phase 3 + 7 seam, pulled forward)
+### PR B — Close the ML loop 🟡 OPEN as PR #8 (branch `claude/nifty-lamport-12eR7`)
 **Goal:** the system not only *recommends* but also *measures whether
 the recommendation was good*. This is the headline AI-engineering
 story; bringing even a thin version forward now strengthens every
 recruiter conversation.
-- Endpoint: `POST /recommendations/{impression_id}/outcomes`
-  (action ∈ {viewed, profile_opened, friend_request_sent, blocked,
-  hangout_rsvped}). Table already exists (`recommendation_outcomes`),
-  nothing writes to it today.
-- Three click handlers on the `/demo` cards that POST outcomes
-  (mark-viewed on view, profile-open on click, "not interested" on
-  dismiss).
-- `apps/api/scripts/evaluate.py`: pull last N days of
-  impressions+outcomes, compute NDCG@10 + Recall@10 for the current
-  ranker vs. a random baseline and a popularity-only baseline, write a
-  markdown report to `docs/eval/`. Even one report committed beats no
-  measurement story.
-- Feature snapshot: also log the raw inputs into the ranker on each
-  impression (embedding hash, mutual-friend count, hometown bool, etc.)
-  so the offline trainer can replay history when Phase 7 lands.
 
-### PR C — Observable and presentable
+Shipped in PR #8 (awaiting review/merge):
+- ✅ `POST /recommendations/{impression_id}/outcomes` — idempotent,
+  additive, Clerk-auth, ownership-checked. Records `viewed` /
+  `profile_opened` / `friend_request_sent` / `hangout_rsvped`.
+  (Dropped the planned `blocked` mapping — see DECISIONS_LOG: would
+  have been a dishonest training label.)
+- ✅ `GET /recommendations` mints + returns an `impression_id` per
+  result and persists a `features_json` snapshot of raw ranker inputs
+  (Alembic `0003`, nullable column).
+- ✅ `apps/api/src/hangpost_api/recommendations/evaluation.py` — pure
+  stdlib NDCG@10 / Recall@10 + popularity + random baselines, unit-tested
+  without a DB.
+- ✅ `apps/api/scripts/evaluate.py` — DB driver that groups
+  impressions+outcomes into queries, scores live vs baselines, writes a
+  markdown report to `docs/eval/`.
+- ✅ `/demo` cards extracted into a client component that POSTs
+  outcomes (`viewed` on mount, `profile_opened` on name click,
+  `friend_request_sent` on Add friend). Dismiss is client-only.
+- ✅ `docs/eval/README.md` + `SYNTHETIC-self-test.md` (live 0.93 vs
+  popularity 0.58 vs random 0.57 NDCG@10 on synthetic inputs).
+
+Outstanding for the PR: live-Codespaces verify of the outcome write
++ Alembic `0003` (CI doesn't have a DB-integration harness yet —
+that's PR C). No code changes expected.
+
+### PR C — Observable and presentable (queued, not started)
 **Goal:** the repo *reads* as well as it *runs*. Smallest PR but the
 one a recruiter sees first.
 - Wire Sentry on browser + API (5-minute job).
@@ -125,9 +136,29 @@ one a recruiter sees first.
   corpus, assert sorted result + valid `MatchBreakdown` shape).
 - Add `docs/PRIVACY.md` covering `user_locations` retention.
 
+### PR D — ML-engineer polish (queued from 2026-05-30 assessment)
+**Goal:** make the AI-engineering story legible at a glance. Each item
+is a 1–2 hour change; ship them as one PR or one-at-a-time.
+- `docs/MODEL_CARD.md` — what the ranker does, its inputs, its limits,
+  known failure modes. Industry-standard responsible-AI artifact.
+- `docs/DATA_CARD.md` — synthetic seed-corpus provenance, biases, why
+  it isn't representative of real users.
+- `docs/notebooks/eval.ipynb` — reproduces the NDCG@10 chart from
+  `scripts/evaluate.py`. Notebooks are the ML interview lingua franca.
+- `docs/PRODUCT_VISION.md` — port from sibling repo (CLAUDE.md §11
+  references it; it doesn't exist here yet).
+- Fairness stub in `evaluate.py`: group impressions by hometown / age
+  bucket, log top-3 rate parity. Doesn't need to be sophisticated.
+
+### Deployment (post-PR-C, blocks recruiter-shareable URL)
+**Goal:** a clickable URL on the resume.
+- Vercel for `apps/web`, Fly.io for `apps/api`, Neon for Postgres.
+- Architecture already chose these (CLAUDE.md §3). Just needs the
+  dashboard work and the secrets propagated.
+
 Phase 2 (posts + feed) stays correctly blocked on Figma designs
-(ADR-0005). The three PRs above all unblock independently of design
-and all make the resume pitch stronger today.
+(ADR-0005). All PRs above unblock independently of design and all
+make the resume pitch stronger today.
 
 ---
 
@@ -146,6 +177,33 @@ and all make the resume pitch stronger today.
 ---
 
 ## Session log
+
+### 2026-05-30 — Repo assessment + next-steps replan (no code)
+
+- Re-read the repo on a fresh branch (`claude/gifted-dirac-kE49j`)
+  with `main` merged through PR #7. Confirmed Phase 0 + Phase 1 +
+  real-user demo loop are all on `main` as advertised.
+- Confirmed **PR #8 is open**, contains the full PR B scope (outcome
+  endpoint + `features_json` + offline NDCG/Recall eval + demo click
+  handlers + synthetic self-test report), and is awaiting review/merge.
+- Replanned next-steps queue with the AI-engineer resume audience as
+  the explicit ranking key:
+  1. Merge PR #8 (the headline ML-loop story).
+  2. Verify the real-user demo against live Clerk in Codespaces (still
+     needs the three Codespaces secrets per §"External inputs needed").
+  3. Ship PR C (Sentry / structured logs / README rewrite / integration
+     test / PRIVACY.md / sibling-repo tag swap).
+  4. Ship PR D (MODEL_CARD + DATA_CARD + eval notebook + PRODUCT_VISION
+     + fairness stub) — added this session.
+  5. Deploy to Vercel + Fly.io + Neon so the resume can carry a URL.
+  6. *Then* unblock Phase 2 (posts + feed) once Figma designs land.
+- Catalogued improvements ranked by resume impact in the session
+  reply (tiers 1–4). Highlights worth recording here so they don't get
+  lost: model card, data card, eval notebook, fairness stub, OpenAPI →
+  TS client into `packages/shared-types/` (directory exists but empty),
+  Trivy + dependabot, embed-on-write → Arq, integration test against
+  real Postgres in CI.
+- No code changes this session. Memory only.
 
 ### 2026-05-29 — PR A: real-user demo loop (branch `claude/nifty-lamport-12eR7`)
 
