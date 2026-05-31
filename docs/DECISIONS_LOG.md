@@ -10,6 +10,55 @@
 
 ---
 
+## 2026-05-31 — Add a "PR D" between PR C and Phase 7 for model registry + model card + slice eval
+
+Resume-lens assessment surfaced three artefacts that AI-engineering
+hiring managers look for in any recommender repo and that we do not
+yet have:
+
+1. A **model registry** — `model_version` is currently a string in
+   `core/config.py`. The Phase-7 A/B harness needs a real surface to
+   point a champion vs challenger at. Smallest viable shape is a
+   `models` table with `(id, name, created_at, metrics_json,
+   is_champion)`; an S3 path per row when we have artefacts to store.
+2. A **model card** (`docs/models/rules-v1.md`) documenting the
+   current ranker's inputs, outputs, training data, known limitations,
+   and a fairness statement. One markdown file; high signal per line.
+3. **Slice-based evaluation** — `scripts/evaluate.py` (in PR #8) reports
+   one global NDCG@10. Real production ML reports metrics per cohort
+   (cold-start users, sparse-friend users, age buckets, hometown
+   matched vs not). Aggregate numbers hide where rankers actually
+   break.
+
+These don't fit cleanly inside PR C (which is small / observability +
+polish) and they don't need to wait for Phase 7's retraining loop.
+Carving them into a new **PR D** between the two keeps each PR
+single-purpose.
+
+Slicing is a *standard* for this repo from now on: any new ranker
+report must include at minimum the cold-start vs warm slice plus
+one demographic-style slice. A single global NDCG is not enough.
+
+---
+
+## 2026-05-31 — Deploying the demo somewhere clickable is a PR C P0
+
+Today the entire ML loop runs only inside docker-compose / Codespaces.
+A recruiter reading the repo sees code, not a working product. For an
+AI-engineer resume that's a structural gap: every other AI candidate
+links a Hugging Face Space, a Streamlit demo, or a deployed Next.js
+app. We have CLAUDE.md §3 already calling out Vercel + Fly.io + Neon
+as the stack; the gap is just operator action.
+
+Promoted "Vercel + Fly.io + Neon deploy" to **PR C item #1**, ahead of
+Sentry / README / integration test. README rewrite stays in PR C but
+becomes meaningful only once a URL exists to link to.
+
+The deploy itself does not need code changes — it needs three
+dashboard logins from the operator and the existing Dockerfile.
+
+---
+
 ## 2026-05-29 — CI Clerk placeholder key must decode to `…$`
 
 The CI `next build` (web job + Docker web image) prerenders

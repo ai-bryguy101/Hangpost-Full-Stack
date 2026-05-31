@@ -4,9 +4,9 @@
 > are*. `CLAUDE.md` tracks *what we decided*. ADRs track *why*. Updated
 > at the **end** of every session in the same commit as the work.
 
-Last updated: **2026-05-29**
-Active branch: `claude/nifty-lamport-12eR7` (PR A — real-user demo loop)
-Current phase: **Phase 1 ✅ complete + real-user onboarding loop shipped**
+Last updated: **2026-05-31**
+Active branch: `claude/gifted-dirac-HtrVh` (assessment + memory refresh, no code)
+Current phase: **Phase 1 ✅ complete + real-user onboarding shipped + PR B (ML-loop closure) open as PR #8 awaiting review**
 Resume framing (CLAUDE.md §10): every next PR must strengthen the
 "I shipped a recommender, evaluated it, and closed the loop on real
 outcomes" pitch. If a change doesn't, postpone it.
@@ -18,9 +18,10 @@ outcomes" pitch. If a change doesn't, postpone it.
 | Phase | Status | Notes |
 |---|---|---|
 | 0. Foundation | ✅ done | Schema, ORM, seed, CI, ADRs 0001–0004. |
-| 1. Auth + Profile + Matching | ✅ done | Engine pinned, 1,000 embeddings backfilled, `/recommendations` returns six-tier ranked output with `MatchBreakdown`, impressions logged, Clerk wired, `/demo` page renders results in a browser. End-to-end verified on docker-compose 2026-05-28. |
-| 2. Location + Feed MVP | ⏳ blocked | On Figma/Stitch designs (ADR-0005). |
-| 3. Matching deepening | ⏳ | Logging seam exists; UI work blocked on Phase 2. |
+| 1. Auth + Profile + Matching | ✅ done | Engine pinned, 1,000 embeddings backfilled, `/recommendations` returns six-tier ranked output with `MatchBreakdown`, impressions logged, Clerk wired, `/demo` page renders results in a browser. End-to-end verified on docker-compose 2026-05-28. Real-user onboarding loop (`/profile/new` → location → JWT-only `/demo`) shipped 2026-05-29 (PR #7). |
+| 1.5 ML-loop closure (PR B) | 🟡 in review | **PR #8 open**: outcome capture, `features_json` per impression, offline NDCG@10 / Recall@10 + popularity & random baselines, synthetic self-test report. Needs docker-compose smoke + one real eval report committed before merge. |
+| 2. Location + Feed MVP | ⏳ blocked | On Figma/Stitch designs (ADR-0005). Pending operator call: hand-translate Stitch, commit raw, or ship shadcn-only first. |
+| 3. Matching deepening | ⏳ | Outcome-capture half pulled into PR #8; UI deepening blocked on Phase 2. |
 | 4. Hangouts + Real-time | ⏳ | Not started. |
 | 5. Friend graph + Social | ⏳ | Not started. |
 | 6. Observability + hardening | ⏳ | Not started. |
@@ -131,6 +132,44 @@ and all make the resume pitch stronger today.
 
 ---
 
+## ML / AI-engineering improvements catalogue (from 2026-05-31 assessment)
+
+Improvements identified through a resume / AI-engineer-hiring lens.
+Ranked by pitch-impact. Items already covered by PR B (#8) or PR C
+are tagged so they aren't re-litigated.
+
+| # | Item | Where it lands |
+|---|---|---|
+| 1 | Deploy a clickable live demo (Vercel + Fly.io + Neon) | **PR C** (top of list) |
+| 2 | README rewrite: lead with the ML loop + one `/demo` screenshot + URL | **PR C** |
+| 3 | Promote `model_version` from a config string to a `models` registry row (or S3 artifact) with `metrics_json` + `is_champion` flag | **New PR D**: prerequisite for Phase 7 A/B |
+| 4 | `docs/models/rules-v1.md` model card (inputs, outputs, training data, known limitations, fairness statement) | **New PR D** |
+| 5 | Slice-based evaluation in `scripts/evaluate.py` (cold-start, sparse-friend, age buckets, hometown-matched-vs-not) | **Extend PR B / PR D** |
+| 6 | Fairness audit notebook at `docs/eval/fairness.ipynb` (disparate-impact check across hometown / college / age) | **Phase 7 prep** |
+| 7 | Drift monitors: embedding-norm distribution, mutual-friend distribution, weekly recall@10 trend | **Phase 7** |
+| 8 | Nightly GitHub Action that runs `scripts/evaluate.py` and commits the report | **PR C** (one extra workflow file) |
+| 9 | Cut a tag on `hangpost-matching`, swap the SHA pin for `v0.x.y` | **PR C** |
+| 10 | DB-backed integration test for `/recommendations` (boot mini seed corpus, assert ranking + breakdown shape) | **PR C** (already flagged in #8) |
+| 11 | `docs/PRIVACY.md` — `user_locations` retention + delete-on-request | **PR C** |
+| 12 | Sentry on browser + API | **PR C** |
+| 13 | Structured ranker log line per call: model_version, latency, candidate count | **PR C** |
+| 14 | Email-collision-on-Clerk-signup 500 → first-write-wins | **PR C** |
+| 15 | Promote inline embed-on-write to Arq job once real traffic exists | **Phase 6** |
+| 16 | Cold-start eval slice (users with no friends, no embedding) | **PR D** |
+| 17 | Domain-adapted embedding model (fine-tune MiniLM on Hangpost bios) — stretch | **Phase 7 stretch** |
+
+---
+
+## Suggested next-steps order (post-2026-05-31)
+
+1. **Smoke-test PR #8** on docker-compose, commit one real `docs/eval/` report, then merge.
+2. **Set the three Clerk Codespaces secrets** and click through the live sign-up loop once. Without this, the app technically has zero verified users.
+3. **PR C** (single bundled PR — none of its items justify a PR alone, together they make the repo *look* the way it already *behaves*): deploy → README → Sentry → structured logs → integration test → `PRIVACY.md` → tag swap → email-collision fix → nightly eval workflow.
+4. **PR D — model registry + model card + slice eval.** Converts the repo from "candidate built a recommender" to "candidate built and *operated* a recommender."
+5. **Decide Phase 2 design pipeline** so the posterboard feed can start. Recommendation: ship hand-coded shadcn/ui first, retro-fit Figma later.
+
+---
+
 ## External inputs needed
 
 **Operator / Clerk** (to make sign-in actually work in Codespaces — see `docs/CLERK_SETUP.md`):
@@ -146,6 +185,33 @@ and all make the resume pitch stronger today.
 ---
 
 ## Session log
+
+### 2026-05-31 — Repo assessment + memory refresh (no code, branch `claude/gifted-dirac-HtrVh`)
+
+- Re-read full repo, ADRs, STATUS, DECISIONS_LOG, PR #8, CI workflow,
+  `recommendations/router.py`. Confirmed state: Phase 1 ✅, PR A merged
+  (PR #7), PR #8 (PR B — ML-loop closure) **open and ready for review**,
+  no open issues, working tree clean on `claude/gifted-dirac-HtrVh`.
+- Catalogued 17 ML/AI-engineering improvements through a recruiter-lens
+  (see new "improvements catalogue" section above). Grouped them onto
+  PR C (already queued), a new **PR D** (model registry + model card +
+  slice eval), and Phase 7.
+- Surfaced gap: today the recommender is logged but *never deployed*.
+  A live URL on the README is worth ten paragraphs of code for the
+  AI-engineer pitch — promoted "deploy" to PR C item #1.
+- Surfaced gap: `model_version` is a settings string. A real model
+  registry (table or S3) is a prerequisite for the Phase-7 A/B
+  harness; pulled forward into a new PR D ahead of full retraining.
+- Surfaced gap: `evaluate.py` (PR #8) reports one global NDCG. Real
+  ML systems report sliced metrics — added cold-start + age + hometown
+  slices to PR D scope.
+- Surfaced gap: no model card, no fairness audit, no drift monitors.
+  These are the artefacts AI-engineering hiring managers grep for.
+- Re-affirmed: Phase 2 (posts + feed) stays blocked on Figma
+  (ADR-0005), but the operator needs to make the hand-translate
+  vs. ship-shadcn-first call so the block doesn't become permanent.
+- No code touched. Memory files updated: this `STATUS.md` and one new
+  entry in `DECISIONS_LOG.md` (PR D scope + slice eval as a standard).
 
 ### 2026-05-29 — PR A: real-user demo loop (branch `claude/nifty-lamport-12eR7`)
 
